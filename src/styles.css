@@ -80,6 +80,29 @@
     opacity: 0.5;
     margin: 8px 0;
   }
+  .mc-crest {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--brass);
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.35em;
+    margin-bottom: 10px;
+    opacity: 0.85;
+  }
+  .mc-crest-line {
+    flex: 0 0 42px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--brass), transparent);
+  }
+  .mc-crest-mark {
+    border: 1px solid var(--brass);
+    padding: 2px 8px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+  }
   .mc-big-input {
     width: 100%;
     background: var(--ink-2);
