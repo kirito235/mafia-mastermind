@@ -592,17 +592,24 @@ export function MafiaCity() {
           {screen === "title" && (
             <div className="mc-screen" style={{ justifyContent: "center", textAlign: "center", padding: "10px 6px" }}>
               <div>
-                <div className="mc-eyebrow">Party Edition</div>
-                <h1 style={{ fontSize: 34, lineHeight: 1.05, color: "var(--paper)" }}>
+                <div className="mc-crest" aria-hidden="true">
+                  <span>✶</span>
+                  <span className="mc-crest-line" />
+                  <span className="mc-crest-mark">MC</span>
+                  <span className="mc-crest-line" />
+                  <span>✶</span>
+                </div>
+                <div className="mc-eyebrow">Est. MCMXXXII · The Bureau</div>
+                <h1 style={{ fontSize: 38, lineHeight: 1.05, color: "var(--paper)" }}>
                   MAFIA <span style={{ color: "var(--blood-bright)" }}>CITY</span>
                 </h1>
-                <div style={{ color: "var(--smoke)", fontSize: 13, letterSpacing: "0.04em" }}>
-                  Case File Assignment — no printed cards required
+                <div style={{ color: "var(--smoke)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 6 }}>
+                  Confidential · For the Godfather's Eyes Only
                 </div>
               </div>
               <div className="mc-divider" />
               <div style={{ textAlign: "left" }}>
-                <div className="mc-eyebrow" style={{ marginBottom: 10 }}>How many are in the room?</div>
+                <div className="mc-eyebrow" style={{ marginBottom: 10 }}>Headcount at the table</div>
                 <input
                   className="mc-big-input"
                   type="number"
@@ -614,15 +621,15 @@ export function MafiaCity() {
                   onChange={(e) => setPlayerCountRaw(e.target.value)}
                 />
                 <div className="mc-hint">
-                  The Bureau handles crowds of 6 to 20. Give it a headcount and every role gets sorted for that size automatically.
+                  Between six and twenty souls. The Bureau assigns every dossier.
                 </div>
               </div>
               <div style={{ color: "var(--blood-bright)", fontSize: 12, minHeight: 16 }}>{setupErr}</div>
               <button className="mc-primary-btn" onClick={startFromTitle}>
-                Continue
+                Open the Files
               </button>
               <button className="mc-ghost-btn" onClick={openPreview}>
-                Preview a sample case file
+                Inspect a Sample Dossier
               </button>
             </div>
           )}
