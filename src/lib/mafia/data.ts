@@ -60,7 +60,8 @@ export const ALIGNMENT: Record<Role, Alignment> = {
   Jailer: "town",
 };
 
-export const OPTIONAL_ROLES: Role[] = ["Doctor", "Detective", "Jailer", "Terrorist"];
+export const OPTIONAL_ROLES = ["Doctor", "Detective", "Jailer", "Terrorist"] as const;
+export type OptionalRole = (typeof OPTIONAL_ROLES)[number];
 
 export const ACTION_CARDS: ActionCard[] = [
   ["Protection", "Declare yourself immune from elimination for this round's vote."],
