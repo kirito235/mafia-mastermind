@@ -1,0 +1,16 @@
+{
+  "name": "Mafia City — Case File Assignment",
+  "short_name": "Mafia City",
+  "description": "Offline case-file assignment for Mafia / Werewolf party games. One phone, no printed cards.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#131113",
+  "theme_color": "#131113",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
