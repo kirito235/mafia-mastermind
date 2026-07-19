@@ -1,6 +1,6 @@
-import { OPTIONAL_ROLES, type ActionCard, type Role } from "./data";
+import { OPTIONAL_ROLES, type ActionCard, type OptionalRole, type Role } from "./data";
 
-export type RoleSettings = Record<(typeof OPTIONAL_ROLES)[number], boolean>;
+export type RoleSettings = Record<OptionalRole, boolean>;
 export type CardSettings = { disabled: string[]; custom: ActionCard[] };
 
 export const KEYS = {
