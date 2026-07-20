@@ -1369,6 +1369,30 @@ function SettingsScreen(props: {
         </div>
       </div>
       <div className="mc-file-card" style={{ textAlign: "left" }}>
+        <div className="mc-file-label">Add-on roles (experimental)</div>
+        <div>
+          {ADDON_ROLES.map((role) => (
+            <label key={role} style={toggleRowStyle}>
+              <input
+                type="checkbox"
+                checked={props.addonSettings[role]}
+                onChange={(e) => props.setAddonSettings((rs) => ({ ...rs, [role]: e.target.checked }))}
+                style={{ width: 18, height: 18, accentColor: "var(--blood)", flexShrink: 0 }}
+              />
+              <span style={{ flex: 1 }}>
+                {role === "SerialKiller" ? "Serial Killer" : role}
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--smoke-dim)", fontStyle: "italic", marginTop: 2 }}>
+                  {ROLE_INFO[role]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
+          Each add-on takes a Civilian slot. Requires at least one Civilian in the current lineup.
+        </div>
+      </div>
+      <div className="mc-file-card" style={{ textAlign: "left" }}>
         <div className="mc-file-label">Action cards in the deck</div>
         <div>
           {allCards.map(([cname]) => {
