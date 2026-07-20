@@ -52,6 +52,13 @@ export function saveRoleSettings(s: RoleSettings) {
   safeSet(KEYS.role, s);
 }
 
+export function loadAddonSettings(): AddonSettings {
+  return { ...defaultAddonSettings(), ...safeGet<Partial<AddonSettings>>(KEYS.addon, {}) };
+}
+export function saveAddonSettings(s: AddonSettings) {
+  safeSet(KEYS.addon, s);
+}
+
 export function loadCardSettings(): CardSettings {
   const raw = safeGet<CardSettings | null>(KEYS.card, null);
   return raw && Array.isArray(raw.disabled) && Array.isArray(raw.custom) ? raw : { disabled: [], custom: [] };
