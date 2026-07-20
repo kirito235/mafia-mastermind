@@ -123,6 +123,7 @@ export function MafiaCity() {
   useEffect(() => {
     setMuted(loadMuted());
     setRoleSettings(loadRoleSettings());
+    setAddonSettings(loadAddonSettings());
     setCardSettings(loadCardSettings());
     const saved = loadLiveSave();
     if (saved && (saved.state as GameState)?.assignments?.length) {
