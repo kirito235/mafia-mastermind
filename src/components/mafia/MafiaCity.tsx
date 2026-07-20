@@ -1545,3 +1545,54 @@ function InfoContent() {
     </>
   );
 }
+
+function HistoryPanel() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  useEffect(() => {
+    setEntries(loadHistory());
+  }, []);
+  const wipe = () => {
+    if (!window.confirm("Erase every recorded game on this device?")) return;
+    clearHistory();
+    setEntries([]);
+  };
+  return (
+    <>
+      <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Game history</h2>
+      <p style={{ fontSize: 12, color: "var(--smoke-dim)" }}>Last {entries.length} game{entries.length === 1 ? "" : "s"} on this device.</p>
+      <ModalDivider />
+      {entries.length === 0 && (
+        <p style={{ fontSize: 13, lineHeight: 1.6, fontStyle: "italic", color: "var(--smoke-dim)" }}>
+          No games recorded yet. Finish a round and it'll appear here.
+        </p>
+      )}
+      <div style={{ maxHeight: "50vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        {entries.map((e, i) => (
+          <div key={i} className="mc-file-card" style={{ textAlign: "left" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "var(--smoke-dim)" }}>{new Date(e.date).toLocaleString()}</span>
+              <span style={{ fontSize: 12, color: e.winner === "town" ? "var(--brass)" : "var(--blood)", fontWeight: 700, letterSpacing: "0.1em" }}>
+                {e.winner === "town" ? "TOWN" : "MAFIA"} WON
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 12 }}>
+              {e.players.map((p, j) => (
+                <span key={j} style={{ padding: "2px 6px", border: "1px solid #8a8474", borderRadius: 3, background: p.won ? "rgba(184,134,11,0.15)" : "transparent" }}>
+                  {p.name} <span style={{ color: "var(--smoke-dim)" }}>· {p.role}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {entries.length > 0 && (
+        <>
+          <ModalDivider />
+          <button className="mc-ghost-btn" style={{ width: "100%", color: "var(--blood)", borderColor: "var(--blood)" }} onClick={wipe}>
+            Erase history
+          </button>
+        </>
+      )}
+    </>
+  );
+}
