@@ -532,6 +532,15 @@ export function MafiaCity() {
       }
     });
     saveScores(scores);
+    appendHistory({
+      date: new Date().toISOString(),
+      winner: side,
+      players: state.assignments.map((a) => ({
+        name: a.name,
+        role: a.role,
+        won: ALIGNMENT[a.role] !== "neutral" && ALIGNMENT[a.role] === side,
+      })),
+    });
     setState((s) => ({ ...s, lastWinnerSide: side, lastGameTime: new Date().toLocaleString() }));
     setWinnerModal(false);
     clearLive();
