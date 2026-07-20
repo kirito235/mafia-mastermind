@@ -17,6 +17,9 @@ export const KEYS = {
 export function defaultRoleSettings(): RoleSettings {
   return { Doctor: true, Detective: true, Jailer: true, Terrorist: true };
 }
+export function defaultAddonSettings(): AddonSettings {
+  return { Vigilante: false, Bodyguard: false, SerialKiller: false };
+}
 
 function safeGet<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
