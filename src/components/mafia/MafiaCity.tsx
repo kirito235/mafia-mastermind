@@ -1330,6 +1330,8 @@ function Scoreboard() {
 function SettingsScreen(props: {
   roleSettings: RoleSettings;
   setRoleSettings: React.Dispatch<React.SetStateAction<RoleSettings>>;
+  addonSettings: AddonSettings;
+  setAddonSettings: React.Dispatch<React.SetStateAction<AddonSettings>>;
   cardSettings: CardSettings;
   toggleCard: (name: string, on: boolean) => void;
   addCustomCard: (name: string, desc: string) => boolean;
