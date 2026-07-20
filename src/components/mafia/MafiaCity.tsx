@@ -104,7 +104,9 @@ export function MafiaCity() {
 
   const [muted, setMuted] = useState(false);
   const [roleSettings, setRoleSettings] = useState<RoleSettings>(defaultRoleSettings());
+  const [addonSettings, setAddonSettings] = useState<AddonSettings>(defaultAddonSettings());
   const [cardSettings, setCardSettings] = useState<CardSettings>({ disabled: [], custom: [] });
+  const [showHistory, setShowHistory] = useState(false);
 
   const [showInfo, setShowInfo] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
