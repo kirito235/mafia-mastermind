@@ -620,6 +620,14 @@ export function MafiaCity() {
             >
               {muted ? "⊘" : "♪"}
             </button>
+            <button
+              className="mc-icon-btn"
+              title="Game history"
+              aria-label="Game history"
+              onClick={() => setShowHistory(true)}
+            >
+              ☰
+            </button>
             <button className="mc-icon-btn" title="Rules & instructions" aria-label="Rules" onClick={() => setShowInfo(true)}>
               i
             </button>
