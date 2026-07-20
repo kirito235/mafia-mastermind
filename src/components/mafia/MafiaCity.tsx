@@ -1284,6 +1284,9 @@ export function MafiaCity() {
           </button>
         </div>
       </Modal>
+      <Modal open={showHistory} onClose={() => setShowHistory(false)}>
+        <HistoryPanel />
+      </Modal>
     </div>
   );
 }
