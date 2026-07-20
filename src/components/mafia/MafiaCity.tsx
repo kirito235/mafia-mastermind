@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ACTION_CARDS,
+  ADDON_ROLES,
   ALIGNMENT,
   DOCTOR_CHANCES,
   OPTIONAL_ROLES,
@@ -11,25 +12,42 @@ import {
   type Role,
 } from "@/lib/mafia/data";
 import {
+  appendHistory,
+  clearHistory,
   clearLive,
+  defaultAddonSettings,
   defaultRoleSettings,
   getActiveCardPool,
   getActiveRoleCounts,
+  loadAddonSettings,
   loadCardSettings,
+  loadHistory,
   loadLiveSave,
   loadMuted,
   loadRoleSettings,
   loadScores,
+  saveAddonSettings,
   saveCardSettings,
   saveLive,
   saveMuted,
   saveRoleSettings,
   saveScores,
+  type AddonSettings,
   type Assignment,
   type CardSettings,
+  type HistoryEntry,
   type RoleSettings,
 } from "@/lib/mafia/storage";
-import { announceBuzz, cancelSpeech, sealBreakFeedback, speak, timerBuzzer } from "@/lib/mafia/audio";
+import {
+  announceBuzz,
+  cancelSpeech,
+  eliminationBell,
+  phaseCue,
+  roleStinger,
+  sealBreakFeedback,
+  speak,
+  timerBuzzer,
+} from "@/lib/mafia/audio";
 import { Seal } from "./Seal";
 import { Modal, ModalDivider } from "./Modal";
 
