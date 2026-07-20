@@ -5,7 +5,10 @@ export type Role =
   | "Doctor"
   | "Detective"
   | "Jailer"
-  | "Terrorist";
+  | "Terrorist"
+  | "Vigilante"
+  | "Bodyguard"
+  | "SerialKiller";
 
 export type Alignment = "town" | "mafia" | "neutral";
 
