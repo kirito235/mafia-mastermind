@@ -1,14 +1,17 @@
-import { OPTIONAL_ROLES, type ActionCard, type OptionalRole, type Role } from "./data";
+import { ADDON_ROLES, OPTIONAL_ROLES, type ActionCard, type AddonRole, type OptionalRole, type Role } from "./data";
 
 export type RoleSettings = Record<OptionalRole, boolean>;
+export type AddonSettings = Record<AddonRole, boolean>;
 export type CardSettings = { disabled: string[]; custom: ActionCard[] };
 
 export const KEYS = {
   role: "mafiaCityRoleSettingsV1",
+  addon: "mafiaCityAddonSettingsV1",
   card: "mafiaCityCardSettingsV1",
   mute: "mafiaCityMutedV1",
   score: "mafiaCityScoreboardV1",
   live: "mafiaCityLiveGameV1",
+  history: "mafiaCityHistoryV1",
 };
 
 export function defaultRoleSettings(): RoleSettings {
