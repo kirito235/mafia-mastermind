@@ -570,11 +570,13 @@ export function MafiaCity() {
   };
   const settingsDone = () => {
     saveRoleSettings(roleSettings);
+    saveAddonSettings(addonSettings);
     saveCardSettings(cardSettings);
     setScreen("title");
   };
   const settingsReset = () => {
     setRoleSettings(defaultRoleSettings());
+    setAddonSettings(defaultAddonSettings());
     setCardSettings({ disabled: [], custom: [] });
   };
 
