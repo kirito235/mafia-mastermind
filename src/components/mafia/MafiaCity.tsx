@@ -677,6 +677,8 @@ export function MafiaCity() {
             <SettingsScreen
               roleSettings={roleSettings}
               setRoleSettings={setRoleSettings}
+              addonSettings={addonSettings}
+              setAddonSettings={setAddonSettings}
               cardSettings={cardSettings}
               toggleCard={toggleCard}
               addCustomCard={addCustomCard}
