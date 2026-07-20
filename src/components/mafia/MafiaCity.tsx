@@ -360,6 +360,8 @@ export function MafiaCity() {
     sealBreakFeedback(muted);
     setPreviewMode(false);
     setScreen("reveal");
+    const a = previewMode ? previewAssign : state.assignments[state.idx];
+    if (a) setTimeout(() => roleStinger(a.role, muted), 220);
   };
 
   const onSealAgain = () => {
@@ -384,7 +386,11 @@ export function MafiaCity() {
 
   // ---- dashboard: phase, elimination, doctor, timer ----
   const advancePhase = () => {
-    setState((s) => (s.phase === "night" ? { ...s, phase: "day" } : { ...s, phase: "night", round: s.round + 1 }));
+    setState((s) => {
+      const next: Phase = s.phase === "night" ? "day" : "night";
+      phaseCue(next, muted);
+      return next === "day" ? { ...s, phase: "day" } : { ...s, phase: "night", round: s.round + 1 };
+    });
   };
   const eliminatePlayer = (name: string) => {
     const a = state.assignments.find((x) => x.name === name && x.alive !== false);
@@ -393,6 +399,7 @@ export function MafiaCity() {
       ...s,
       assignments: s.assignments.map((x) => (x.name === name ? { ...x, alive: false } : x)),
     }));
+    eliminationBell(muted);
     const wasMafia = ALIGNMENT[a.role] === "mafia";
     if (state.phase === "night") {
       announce(`${name} was killed`, `They didn't make it through the night.`);
