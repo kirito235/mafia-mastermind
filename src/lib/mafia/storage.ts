@@ -1,18 +1,24 @@
-import { OPTIONAL_ROLES, type ActionCard, type OptionalRole, type Role } from "./data";
+import { ADDON_ROLES, OPTIONAL_ROLES, type ActionCard, type AddonRole, type OptionalRole, type Role } from "./data";
 
 export type RoleSettings = Record<OptionalRole, boolean>;
+export type AddonSettings = Record<AddonRole, boolean>;
 export type CardSettings = { disabled: string[]; custom: ActionCard[] };
 
 export const KEYS = {
   role: "mafiaCityRoleSettingsV1",
+  addon: "mafiaCityAddonSettingsV1",
   card: "mafiaCityCardSettingsV1",
   mute: "mafiaCityMutedV1",
   score: "mafiaCityScoreboardV1",
   live: "mafiaCityLiveGameV1",
+  history: "mafiaCityHistoryV1",
 };
 
 export function defaultRoleSettings(): RoleSettings {
   return { Doctor: true, Detective: true, Jailer: true, Terrorist: true };
+}
+export function defaultAddonSettings(): AddonSettings {
+  return { Vigilante: false, Bodyguard: false, SerialKiller: false };
 }
 
 function safeGet<T>(key: string, fallback: T): T {
@@ -44,6 +50,13 @@ export function loadRoleSettings(): RoleSettings {
 }
 export function saveRoleSettings(s: RoleSettings) {
   safeSet(KEYS.role, s);
+}
+
+export function loadAddonSettings(): AddonSettings {
+  return { ...defaultAddonSettings(), ...safeGet<Partial<AddonSettings>>(KEYS.addon, {}) };
+}
+export function saveAddonSettings(s: AddonSettings) {
+  safeSet(KEYS.addon, s);
 }
 
 export function loadCardSettings(): CardSettings {
@@ -93,9 +106,16 @@ export function clearLive() {
   safeRemove(KEYS.live);
 }
 
-// Helper to filter active role counts based on settings
+// Helper to filter active role counts based on settings.
+// Optional roles (Doctor/Detective/Jailer/Terrorist) fold their slots into
+// Civilian when disabled. Addon roles (Vigilante/Bodyguard/SerialKiller)
+// consume a Civilian slot when enabled, only if one is available.
 import { ROLE_TABLE } from "./data";
-export function getActiveRoleCounts(n: number, settings: RoleSettings): Record<string, number> {
+export function getActiveRoleCounts(
+  n: number,
+  settings: RoleSettings,
+  addons: AddonSettings = defaultAddonSettings()
+): Record<string, number> {
   const base: Record<string, number> = { ...(ROLE_TABLE[n] as Record<string, number>) };
   let extraCiv = 0;
   OPTIONAL_ROLES.forEach((role) => {
@@ -105,7 +125,34 @@ export function getActiveRoleCounts(n: number, settings: RoleSettings): Record<s
     }
   });
   base.Civilian = (base.Civilian || 0) + extraCiv;
+  ADDON_ROLES.forEach((role) => {
+    if (addons[role] && (base.Civilian || 0) > 0) {
+      base.Civilian--;
+      base[role] = (base[role] || 0) + 1;
+    }
+  });
+  if (base.Civilian === 0) delete base.Civilian;
   return base;
+}
+
+export type HistoryEntry = {
+  date: string;
+  winner: "town" | "mafia";
+  players: { name: string; role: Role; won: boolean }[];
+};
+export function loadHistory(): HistoryEntry[] {
+  return safeGet<HistoryEntry[]>(KEYS.history, []);
+}
+export function saveHistory(h: HistoryEntry[]) {
+  safeSet(KEYS.history, h.slice(0, 50)); // cap at 50 most recent
+}
+export function appendHistory(entry: HistoryEntry) {
+  const h = loadHistory();
+  h.unshift(entry);
+  saveHistory(h);
+}
+export function clearHistory() {
+  safeRemove(KEYS.history);
 }
 
 export function getActiveCardPool(cards: CardSettings, defaults: ActionCard[]): ActionCard[] {

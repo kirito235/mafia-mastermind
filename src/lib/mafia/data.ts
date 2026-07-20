@@ -5,7 +5,10 @@ export type Role =
   | "Doctor"
   | "Detective"
   | "Jailer"
-  | "Terrorist";
+  | "Terrorist"
+  | "Vigilante"
+  | "Bodyguard"
+  | "SerialKiller";
 
 export type Alignment = "town" | "mafia" | "neutral";
 
@@ -48,6 +51,12 @@ export const ROLE_INFO: Record<Role, string> = {
     "Each night, before the Mafia acts, silently choose one player to lock up. That player skips all action for the night.",
   Terrorist:
     "You're aligned with the Mafia but play alone. At any point during a Day Phase, you may sacrifice yourself to instantly eliminate one other player of your choice.",
+  Vigilante:
+    "You're an armed Town-aligned player. Once per game — during a Night Phase — you may silently point to a player to eliminate them. Choose wisely: killing an innocent haunts you and the Town.",
+  Bodyguard:
+    "Each Night Phase, silently point to one player to shield. If the Mafia targets them, you die in their place. You cannot shield yourself.",
+  SerialKiller:
+    "You play alone. Each night, silently point to one player to eliminate. You win if you outlast every other player — Town and Mafia alike. Investigations reveal you as suspicious.",
 };
 
 export const ALIGNMENT: Record<Role, Alignment> = {
@@ -58,10 +67,18 @@ export const ALIGNMENT: Record<Role, Alignment> = {
   Doctor: "town",
   Detective: "town",
   Jailer: "town",
+  Vigilante: "town",
+  Bodyguard: "town",
+  SerialKiller: "neutral",
 };
 
 export const OPTIONAL_ROLES = ["Doctor", "Detective", "Jailer", "Terrorist"] as const;
 export type OptionalRole = (typeof OPTIONAL_ROLES)[number];
+
+// Add-on roles: not in ROLE_TABLE presets. When enabled, they consume a
+// Civilian slot (only if a Civilian slot exists in the current game).
+export const ADDON_ROLES = ["Vigilante", "Bodyguard", "SerialKiller"] as const;
+export type AddonRole = (typeof ADDON_ROLES)[number];
 
 export const ACTION_CARDS: ActionCard[] = [
   ["Protection", "Declare yourself immune from elimination for this round's vote."],

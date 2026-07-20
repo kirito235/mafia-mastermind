@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ACTION_CARDS,
+  ADDON_ROLES,
   ALIGNMENT,
   DOCTOR_CHANCES,
   OPTIONAL_ROLES,
@@ -11,25 +12,42 @@ import {
   type Role,
 } from "@/lib/mafia/data";
 import {
+  appendHistory,
+  clearHistory,
   clearLive,
+  defaultAddonSettings,
   defaultRoleSettings,
   getActiveCardPool,
   getActiveRoleCounts,
+  loadAddonSettings,
   loadCardSettings,
+  loadHistory,
   loadLiveSave,
   loadMuted,
   loadRoleSettings,
   loadScores,
+  saveAddonSettings,
   saveCardSettings,
   saveLive,
   saveMuted,
   saveRoleSettings,
   saveScores,
+  type AddonSettings,
   type Assignment,
   type CardSettings,
+  type HistoryEntry,
   type RoleSettings,
 } from "@/lib/mafia/storage";
-import { announceBuzz, cancelSpeech, sealBreakFeedback, speak, timerBuzzer } from "@/lib/mafia/audio";
+import {
+  announceBuzz,
+  cancelSpeech,
+  eliminationBell,
+  phaseCue,
+  roleStinger,
+  sealBreakFeedback,
+  speak,
+  timerBuzzer,
+} from "@/lib/mafia/audio";
 import { Seal } from "./Seal";
 import { Modal, ModalDivider } from "./Modal";
 
@@ -86,7 +104,9 @@ export function MafiaCity() {
 
   const [muted, setMuted] = useState(false);
   const [roleSettings, setRoleSettings] = useState<RoleSettings>(defaultRoleSettings());
+  const [addonSettings, setAddonSettings] = useState<AddonSettings>(defaultAddonSettings());
   const [cardSettings, setCardSettings] = useState<CardSettings>({ disabled: [], custom: [] });
+  const [showHistory, setShowHistory] = useState(false);
 
   const [showInfo, setShowInfo] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -103,6 +123,7 @@ export function MafiaCity() {
   useEffect(() => {
     setMuted(loadMuted());
     setRoleSettings(loadRoleSettings());
+    setAddonSettings(loadAddonSettings());
     setCardSettings(loadCardSettings());
     const saved = loadLiveSave();
     if (saved && (saved.state as GameState)?.assignments?.length) {
@@ -293,7 +314,7 @@ export function MafiaCity() {
 
   // ---- deal roles ----
   const finalizeAssignments = () => {
-    const table = getActiveRoleCounts(state.n, roleSettings);
+    const table = getActiveRoleCounts(state.n, roleSettings, addonSettings);
     let rolePool: Role[] = [];
     Object.entries(table).forEach(([role, count]) => {
       for (let i = 0; i < count; i++) rolePool.push(role as Role);
@@ -339,6 +360,8 @@ export function MafiaCity() {
     sealBreakFeedback(muted);
     setPreviewMode(false);
     setScreen("reveal");
+    const a = previewMode ? previewAssign : state.assignments[state.idx];
+    if (a) setTimeout(() => roleStinger(a.role, muted), 220);
   };
 
   const onSealAgain = () => {
@@ -363,7 +386,11 @@ export function MafiaCity() {
 
   // ---- dashboard: phase, elimination, doctor, timer ----
   const advancePhase = () => {
-    setState((s) => (s.phase === "night" ? { ...s, phase: "day" } : { ...s, phase: "night", round: s.round + 1 }));
+    setState((s) => {
+      const next: Phase = s.phase === "night" ? "day" : "night";
+      phaseCue(next, muted);
+      return next === "day" ? { ...s, phase: "day" } : { ...s, phase: "night", round: s.round + 1 };
+    });
   };
   const eliminatePlayer = (name: string) => {
     const a = state.assignments.find((x) => x.name === name && x.alive !== false);
@@ -372,6 +399,7 @@ export function MafiaCity() {
       ...s,
       assignments: s.assignments.map((x) => (x.name === name ? { ...x, alive: false } : x)),
     }));
+    eliminationBell(muted);
     const wasMafia = ALIGNMENT[a.role] === "mafia";
     if (state.phase === "night") {
       announce(`${name} was killed`, `They didn't make it through the night.`);
@@ -504,6 +532,15 @@ export function MafiaCity() {
       }
     });
     saveScores(scores);
+    appendHistory({
+      date: new Date().toISOString(),
+      winner: side,
+      players: state.assignments.map((a) => ({
+        name: a.name,
+        role: a.role,
+        won: ALIGNMENT[a.role] !== "neutral" && ALIGNMENT[a.role] === side,
+      })),
+    });
     setState((s) => ({ ...s, lastWinnerSide: side, lastGameTime: new Date().toLocaleString() }));
     setWinnerModal(false);
     clearLive();
@@ -533,11 +570,13 @@ export function MafiaCity() {
   };
   const settingsDone = () => {
     saveRoleSettings(roleSettings);
+    saveAddonSettings(addonSettings);
     saveCardSettings(cardSettings);
     setScreen("title");
   };
   const settingsReset = () => {
     setRoleSettings(defaultRoleSettings());
+    setAddonSettings(defaultAddonSettings());
     setCardSettings({ disabled: [], custom: [] });
   };
 
@@ -580,6 +619,14 @@ export function MafiaCity() {
               aria-label={muted ? "Unmute" : "Mute"}
             >
               {muted ? "⊘" : "♪"}
+            </button>
+            <button
+              className="mc-icon-btn"
+              title="Game history"
+              aria-label="Game history"
+              onClick={() => setShowHistory(true)}
+            >
+              ☰
             </button>
             <button className="mc-icon-btn" title="Rules & instructions" aria-label="Rules" onClick={() => setShowInfo(true)}>
               i
@@ -638,6 +685,8 @@ export function MafiaCity() {
             <SettingsScreen
               roleSettings={roleSettings}
               setRoleSettings={setRoleSettings}
+              addonSettings={addonSettings}
+              setAddonSettings={setAddonSettings}
               cardSettings={cardSettings}
               toggleCard={toggleCard}
               addCustomCard={addCustomCard}
@@ -1235,6 +1284,9 @@ export function MafiaCity() {
           </button>
         </div>
       </Modal>
+      <Modal open={showHistory} onClose={() => setShowHistory(false)}>
+        <HistoryPanel />
+      </Modal>
     </div>
   );
 }
@@ -1289,6 +1341,8 @@ function Scoreboard() {
 function SettingsScreen(props: {
   roleSettings: RoleSettings;
   setRoleSettings: React.Dispatch<React.SetStateAction<RoleSettings>>;
+  addonSettings: AddonSettings;
+  setAddonSettings: React.Dispatch<React.SetStateAction<AddonSettings>>;
   cardSettings: CardSettings;
   toggleCard: (name: string, on: boolean) => void;
   addCustomCard: (name: string, desc: string) => boolean;
@@ -1323,6 +1377,30 @@ function SettingsScreen(props: {
         </div>
         <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
           Godfather and Mafia are always in play. Turning a role off folds its slot(s) into Civilian instead.
+        </div>
+      </div>
+      <div className="mc-file-card" style={{ textAlign: "left" }}>
+        <div className="mc-file-label">Add-on roles (experimental)</div>
+        <div>
+          {ADDON_ROLES.map((role) => (
+            <label key={role} style={toggleRowStyle}>
+              <input
+                type="checkbox"
+                checked={props.addonSettings[role]}
+                onChange={(e) => props.setAddonSettings((rs) => ({ ...rs, [role]: e.target.checked }))}
+                style={{ width: 18, height: 18, accentColor: "var(--blood)", flexShrink: 0 }}
+              />
+              <span style={{ flex: 1 }}>
+                {role === "SerialKiller" ? "Serial Killer" : role}
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--smoke-dim)", fontStyle: "italic", marginTop: 2 }}>
+                  {ROLE_INFO[role]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
+          Each add-on takes a Civilian slot. Requires at least one Civilian in the current lineup.
         </div>
       </div>
       <div className="mc-file-card" style={{ textAlign: "left" }}>
@@ -1464,6 +1542,57 @@ function InfoContent() {
       <p style={{ fontSize: 13, lineHeight: 1.6 }}>
         <b>⚙</b> customize roles &amp; cards · <b>♪</b> mute sound/vibration · <b>i</b> these rules · <b>⟲</b> abandon this game.
       </p>
+    </>
+  );
+}
+
+function HistoryPanel() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  useEffect(() => {
+    setEntries(loadHistory());
+  }, []);
+  const wipe = () => {
+    if (!window.confirm("Erase every recorded game on this device?")) return;
+    clearHistory();
+    setEntries([]);
+  };
+  return (
+    <>
+      <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Game history</h2>
+      <p style={{ fontSize: 12, color: "var(--smoke-dim)" }}>Last {entries.length} game{entries.length === 1 ? "" : "s"} on this device.</p>
+      <ModalDivider />
+      {entries.length === 0 && (
+        <p style={{ fontSize: 13, lineHeight: 1.6, fontStyle: "italic", color: "var(--smoke-dim)" }}>
+          No games recorded yet. Finish a round and it'll appear here.
+        </p>
+      )}
+      <div style={{ maxHeight: "50vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+        {entries.map((e, i) => (
+          <div key={i} className="mc-file-card" style={{ textAlign: "left" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "var(--smoke-dim)" }}>{new Date(e.date).toLocaleString()}</span>
+              <span style={{ fontSize: 12, color: e.winner === "town" ? "var(--brass)" : "var(--blood)", fontWeight: 700, letterSpacing: "0.1em" }}>
+                {e.winner === "town" ? "TOWN" : "MAFIA"} WON
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 12 }}>
+              {e.players.map((p, j) => (
+                <span key={j} style={{ padding: "2px 6px", border: "1px solid #8a8474", borderRadius: 3, background: p.won ? "rgba(184,134,11,0.15)" : "transparent" }}>
+                  {p.name} <span style={{ color: "var(--smoke-dim)" }}>· {p.role}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {entries.length > 0 && (
+        <>
+          <ModalDivider />
+          <button className="mc-ghost-btn" style={{ width: "100%", color: "var(--blood)", borderColor: "var(--blood)" }} onClick={wipe}>
+            Erase history
+          </button>
+        </>
+      )}
     </>
   );
 }
