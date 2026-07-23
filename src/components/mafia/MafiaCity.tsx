@@ -318,7 +318,7 @@ export function MafiaCity() {
 
   // ---- deal roles ----
   const finalizeAssignments = () => {
-    const table = getActiveRoleCounts(state.n, roleSettings, addonSettings);
+    const table = getActiveRoleCounts(state.n, roleSettings, addonSettings, state.mafiaOverride);
     let rolePool: Role[] = [];
     Object.entries(table).forEach(([role, count]) => {
       for (let i = 0; i < count; i++) rolePool.push(role as Role);
