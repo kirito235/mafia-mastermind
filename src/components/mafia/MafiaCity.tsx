@@ -227,7 +227,7 @@ export function MafiaCity() {
       return;
     }
     setSetupErr("");
-    setState({ ...initialState(), n, names: new Array(n).fill("") });
+    setState((s) => ({ ...initialState(), n, names: new Array(n).fill(""), mafiaOverride: s.mafiaOverride }));
     setNeIdx(0);
     setScreen("nameEntry");
   };
