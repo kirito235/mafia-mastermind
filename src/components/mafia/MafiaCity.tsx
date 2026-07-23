@@ -75,6 +75,7 @@ type GameState = {
   godfatherChoice: string | null;
   phase: Phase;
   round: number;
+  mafiaOverride: number | null;
 };
 
 const RESUMABLE_SCREENS: Screen[] = ["nameEntry", "nameReview", "pass", "reveal", "finalSeal", "dashboard"];
@@ -91,6 +92,7 @@ function initialState(): GameState {
     godfatherChoice: null,
     phase: "night",
     round: 1,
+    mafiaOverride: null,
   };
 }
 
