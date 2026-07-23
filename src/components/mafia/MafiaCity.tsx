@@ -16,6 +16,7 @@ import {
   clearHistory,
   clearLive,
   defaultAddonSettings,
+  defaultMafiaCount,
   defaultRoleSettings,
   getActiveCardPool,
   getActiveRoleCounts,
@@ -26,6 +27,7 @@ import {
   loadMuted,
   loadRoleSettings,
   loadScores,
+  maxMafiaCount,
   saveAddonSettings,
   saveCardSettings,
   saveLive,
@@ -75,6 +77,7 @@ type GameState = {
   godfatherChoice: string | null;
   phase: Phase;
   round: number;
+  mafiaOverride: number | null;
 };
 
 const RESUMABLE_SCREENS: Screen[] = ["nameEntry", "nameReview", "pass", "reveal", "finalSeal", "dashboard"];
@@ -91,6 +94,7 @@ function initialState(): GameState {
     godfatherChoice: null,
     phase: "night",
     round: 1,
+    mafiaOverride: null,
   };
 }
 
@@ -223,7 +227,7 @@ export function MafiaCity() {
       return;
     }
     setSetupErr("");
-    setState({ ...initialState(), n, names: new Array(n).fill("") });
+    setState((s) => ({ ...initialState(), n, names: new Array(n).fill(""), mafiaOverride: s.mafiaOverride }));
     setNeIdx(0);
     setScreen("nameEntry");
   };
@@ -314,7 +318,7 @@ export function MafiaCity() {
 
   // ---- deal roles ----
   const finalizeAssignments = () => {
-    const table = getActiveRoleCounts(state.n, roleSettings, addonSettings);
+    const table = getActiveRoleCounts(state.n, roleSettings, addonSettings, state.mafiaOverride);
     let rolePool: Role[] = [];
     Object.entries(table).forEach(([role, count]) => {
       for (let i = 0; i < count; i++) rolePool.push(role as Role);
@@ -670,6 +674,49 @@ export function MafiaCity() {
                 <div className="mc-hint">
                   Between six and twenty souls. The Bureau assigns every dossier.
                 </div>
+                {(() => {
+                  const n = parseInt(playerCountRaw.trim(), 10);
+                  if (!n || n < 6 || n > 20) return null;
+                  const def = defaultMafiaCount(n, roleSettings, addonSettings);
+                  const max = maxMafiaCount(n, roleSettings, addonSettings);
+                  const current = state.mafiaOverride ?? def;
+                  const setMafia = (v: number) => {
+                    const clamped = Math.max(1, Math.min(max, v));
+                    setState((s) => ({ ...s, mafiaOverride: clamped === def ? null : clamped }));
+                  };
+                  return (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="mc-eyebrow" style={{ marginBottom: 8 }}>Made men on the payroll</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <button
+                          type="button"
+                          className="mc-ghost-btn"
+                          style={{ padding: "6px 14px", minWidth: 44 }}
+                          onClick={() => setMafia(current - 1)}
+                          disabled={current <= 1}
+                          aria-label="Fewer Mafia"
+                        >−</button>
+                        <div style={{ flex: 1, textAlign: "center", fontFamily: "'Courier Prime', monospace", color: "var(--paper)" }}>
+                          <div style={{ fontSize: 24, lineHeight: 1 }}>{current}</div>
+                          <div style={{ fontSize: 10, color: "var(--smoke-dim)", letterSpacing: "0.14em", marginTop: 4 }}>
+                            MAFIA {state.mafiaOverride === null ? "· BUREAU DEFAULT" : "· ADJUSTED"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="mc-ghost-btn"
+                          style={{ padding: "6px 14px", minWidth: 44 }}
+                          onClick={() => setMafia(current + 1)}
+                          disabled={current >= max}
+                          aria-label="More Mafia"
+                        >+</button>
+                      </div>
+                      <div className="mc-hint" style={{ marginTop: 6 }}>
+                        Default {def} · min 1 · max {max}. Extra goons swap in for civilians.
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div style={{ color: "var(--blood-bright)", fontSize: 12, minHeight: 16 }}>{setupErr}</div>
               <button className="mc-primary-btn" onClick={startFromTitle}>
