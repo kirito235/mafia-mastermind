@@ -114,7 +114,8 @@ import { ROLE_TABLE } from "./data";
 export function getActiveRoleCounts(
   n: number,
   settings: RoleSettings,
-  addons: AddonSettings = defaultAddonSettings()
+  addons: AddonSettings = defaultAddonSettings(),
+  mafiaOverride: number | null = null
 ): Record<string, number> {
   const base: Record<string, number> = { ...(ROLE_TABLE[n] as Record<string, number>) };
   let extraCiv = 0;
@@ -125,6 +126,14 @@ export function getActiveRoleCounts(
     }
   });
   base.Civilian = (base.Civilian || 0) + extraCiv;
+  if (mafiaOverride !== null && Number.isFinite(mafiaOverride)) {
+    const currentMafia = base.Mafia || 0;
+    const maxMafia = currentMafia + (base.Civilian || 0);
+    const target = Math.max(1, Math.min(maxMafia, Math.floor(mafiaOverride)));
+    const diff = target - currentMafia;
+    base.Mafia = target;
+    base.Civilian = Math.max(0, (base.Civilian || 0) - diff);
+  }
   ADDON_ROLES.forEach((role) => {
     if (addons[role] && (base.Civilian || 0) > 0) {
       base.Civilian--;
@@ -133,6 +142,24 @@ export function getActiveRoleCounts(
   });
   if (base.Civilian === 0) delete base.Civilian;
   return base;
+}
+
+export function defaultMafiaCount(
+  n: number,
+  settings: RoleSettings,
+  addons: AddonSettings = defaultAddonSettings()
+): number {
+  const t = getActiveRoleCounts(n, settings, addons, null);
+  return t.Mafia || 0;
+}
+
+export function maxMafiaCount(
+  n: number,
+  settings: RoleSettings,
+  addons: AddonSettings = defaultAddonSettings()
+): number {
+  const t = getActiveRoleCounts(n, settings, addons, null);
+  return (t.Mafia || 0) + (t.Civilian || 0);
 }
 
 export type HistoryEntry = {
