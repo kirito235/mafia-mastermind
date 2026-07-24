@@ -12,6 +12,11 @@ export const KEYS = {
   score: "mafiaCityScoreboardV1",
   live: "mafiaCityLiveGameV1",
   history: "mafiaCityHistoryV1",
+  // Phase 1/2 additions:
+  theme: "mafiaCityThemeV1",
+  premium: "mafiaCityPremiumV1", // stub only until Play Billing lands in Phase 3
+  reviewPrompt: "mafiaCityReviewPromptV1",
+  dim: "mafiaCityDimModeV1",
 };
 
 export function defaultRoleSettings(): RoleSettings {
@@ -80,6 +85,57 @@ export function saveMuted(m: boolean) {
   try {
     window.localStorage.setItem(KEYS.mute, m ? "1" : "0");
   } catch {}
+}
+
+// ---- Phase 2: dark-room dim mode ----
+export function loadDimPref(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(KEYS.dim) === "1";
+  } catch {
+    return false;
+  }
+}
+export function saveDimPref(v: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KEYS.dim, v ? "1" : "0");
+  } catch {}
+}
+
+// ---- Phase 2: theme packs ----
+export function loadThemeId(): string {
+  return safeGet<string>(KEYS.theme, "classic");
+}
+export function saveThemeId(id: string) {
+  safeSet(KEYS.theme, id);
+}
+
+// ---- Premium stub (real check replaces this once Play Billing is wired in
+// Phase 3 — kept as a plain flag now so the gated UI can be built and tested
+// ahead of the billing integration) ----
+export function loadPremium(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(KEYS.premium) === "1";
+  } catch {
+    return false;
+  }
+}
+export function savePremium(v: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(KEYS.premium, v ? "1" : "0");
+  } catch {}
+}
+
+// ---- Play Store review prompt ----
+export type ReviewPromptState = { gamesCompleted: number; shown: boolean };
+export function loadReviewPromptState(): ReviewPromptState {
+  return safeGet<ReviewPromptState>(KEYS.reviewPrompt, { gamesCompleted: 0, shown: false });
+}
+export function saveReviewPromptState(s: ReviewPromptState) {
+  safeSet(KEYS.reviewPrompt, s);
 }
 
 export type ScoreRow = { wins: number; losses: number; games: number };

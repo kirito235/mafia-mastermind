@@ -156,6 +156,10 @@
     color: var(--paper);
     border-color: var(--brass);
   }
+  .mc-ghost-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
   .mc-file-card {
     background: var(--paper);
     color: var(--ink);
@@ -231,6 +235,14 @@
     background-image:
       radial-gradient(circle at 50% 0%, rgba(169, 130, 47, 0.07), transparent 60%),
       repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 3px);
+    transition: filter 0.3s ease;
+  }
+
+  /* Phase 2: dark-room dim mode. Toggled manually from the top bar — cuts
+     screen brightness for a table playing in a dim room without needing an
+     OS-level brightness change. */
+  .mc-app-bg.mc-dim {
+    filter: brightness(0.55) saturate(0.85);
   }
 
   /* Seal */

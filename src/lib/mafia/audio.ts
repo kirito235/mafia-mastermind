@@ -83,6 +83,53 @@ export function announceBuzz(muted: boolean) {
   vibrate([80, 60, 80]);
 }
 
+// ---- Phase 2: auto-narration mode ----
+// Chains a list of lines through speechSynthesis with a pause between each,
+// falling back to a timed delay when muted or unsupported so the Godfather
+// dashboard can still advance a "narration" pace without audio. Cancellable
+// via a module-level flag since SpeechSynthesisUtterance has no abort signal.
+let _narrationCancelled = false;
+
+export function speakSequence(
+  lines: string[],
+  muted: boolean,
+  onDone: () => void,
+  pauseMs = 900,
+) {
+  _narrationCancelled = false;
+  let i = 0;
+
+  const next = () => {
+    if (_narrationCancelled || i >= lines.length) {
+      onDone();
+      return;
+    }
+    const line = lines[i];
+    i += 1;
+
+    if (muted || !("speechSynthesis" in window)) {
+      window.setTimeout(next, 1600);
+      return;
+    }
+    try {
+      const u = new SpeechSynthesisUtterance(line);
+      u.rate = 0.95;
+      u.onend = () => window.setTimeout(next, pauseMs);
+      u.onerror = () => window.setTimeout(next, pauseMs);
+      window.speechSynthesis.speak(u);
+    } catch {
+      window.setTimeout(next, pauseMs);
+    }
+  };
+
+  next();
+}
+
+export function cancelSpeakSequence() {
+  _narrationCancelled = true;
+  cancelSpeech();
+}
+
 // Role-specific reveal stingers — each role gets a signature short motif.
 export function roleStinger(role: string, muted: boolean) {
   if (muted) return;
