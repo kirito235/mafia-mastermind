@@ -6,10 +6,9 @@ const config: CapacitorConfig = {
   // as a brand-new app listing.
   appId: "com.yourcompany.mafiacity",
   appName: "Mafia City",
-  // TODO: verify this against your actual build output folder once you
-  // run `npm run build` with SPA mode enabled — commonly "dist" or
-  // ".output/public" depending on the nitro preset in use.
-  webDir: ".output/public",
+  // Points at vite.mobile.config.ts's output -- a plain static SPA build
+  // that bypasses TanStack Start/nitro entirely (see that file for why).
+  webDir: "dist-mobile",
   android: {
     allowMixedContent: false,
   },

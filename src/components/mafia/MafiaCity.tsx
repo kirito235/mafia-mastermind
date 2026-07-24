@@ -22,18 +22,26 @@ import {
   getActiveRoleCounts,
   loadAddonSettings,
   loadCardSettings,
+  loadDimPref,
   loadHistory,
   loadLiveSave,
   loadMuted,
+  loadPremium,
+  loadReviewPromptState,
   loadRoleSettings,
   loadScores,
+  loadThemeId,
   maxMafiaCount,
   saveAddonSettings,
   saveCardSettings,
+  saveDimPref,
   saveLive,
   saveMuted,
+  savePremium,
+  saveReviewPromptState,
   saveRoleSettings,
   saveScores,
+  saveThemeId,
   type AddonSettings,
   type Assignment,
   type CardSettings,
@@ -42,16 +50,26 @@ import {
 } from "@/lib/mafia/storage";
 import {
   announceBuzz,
+  cancelSpeakSequence,
   cancelSpeech,
   eliminationBell,
   phaseCue,
   roleStinger,
   sealBreakFeedback,
   speak,
+  speakSequence,
   timerBuzzer,
 } from "@/lib/mafia/audio";
+import { applyTheme, THEMES, isThemeId, type ThemeId } from "@/lib/mafia/themes";
+import { buildShareText, shareGameResult } from "@/lib/mafia/share";
+import { exportBackupToFile, importBackupFromJSON } from "@/lib/mafia/backup";
+import { initAds, showBanner, hideBanner, showInterstitialOnNewGame } from "@/lib/mafia/ads";
+import { checkPremiumStatus, purchasePremium } from "@/lib/mafia/billing";
 import { Seal } from "./Seal";
 import { Modal, ModalDivider } from "./Modal";
+
+// TODO: replace with the real Play Store listing once the app is published.
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.yourcompany.mafiacity";
 
 type Screen =
   | "title"
@@ -78,6 +96,8 @@ type GameState = {
   phase: Phase;
   round: number;
   mafiaOverride: number | null;
+  /** Names eliminated this game, in order — powers the Phase 2 "undo" button. */
+  eliminationLog: string[];
 };
 
 const RESUMABLE_SCREENS: Screen[] = ["nameEntry", "nameReview", "pass", "reveal", "finalSeal", "dashboard"];
@@ -95,6 +115,7 @@ function initialState(): GameState {
     phase: "night",
     round: 1,
     mafiaOverride: null,
+    eliminationLog: [],
   };
 }
 
@@ -123,12 +144,36 @@ export function MafiaCity() {
   const [setupErr, setSetupErr] = useState("");
   const [playerCountRaw, setPlayerCountRaw] = useState("");
 
+  // ---- Phase 1/2 additions ----
+  const [themeId, setThemeId] = useState<ThemeId>("classic");
+  const [isPremium, setIsPremium] = useState(false);
+  const [dimEnabled, setDimEnabled] = useState(false);
+  const [narrating, setNarrating] = useState(false);
+  const [showPremiumPrompt, setShowPremiumPrompt] = useState(false);
+  const [showReviewPrompt, setShowReviewPrompt] = useState(false);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseMsg, setPurchaseMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Load persisted settings on mount, offer to resume interrupted game
   useEffect(() => {
     setMuted(loadMuted());
     setRoleSettings(loadRoleSettings());
     setAddonSettings(loadAddonSettings());
     setCardSettings(loadCardSettings());
+
+    const storedTheme = loadThemeId();
+    const resolvedTheme: ThemeId = isThemeId(storedTheme) ? storedTheme : "classic";
+    setThemeId(resolvedTheme);
+    applyTheme(resolvedTheme);
+    setDimEnabled(loadDimPref());
+    // Real Play Billing check on native; falls back to the local dev-toggle
+    // flag automatically when running in the browser/Lovable preview.
+    checkPremiumStatus().then(setIsPremium);
+    initAds();
+
     const saved = loadLiveSave();
     if (saved && (saved.state as GameState)?.assignments?.length) {
       setPendingResume({
@@ -174,11 +219,32 @@ export function MafiaCity() {
     };
   }, []);
 
+  // Phase 3: banner only on screens where it won't crowd the seal-reveal
+  // flow — title (setup) and the Godfather's dashboard. Never during a
+  // private role reveal.
+  useEffect(() => {
+    if (isPremium) {
+      hideBanner();
+      return;
+    }
+    if (screen === "title" || screen === "dashboard") {
+      showBanner();
+    } else {
+      hideBanner();
+    }
+  }, [screen, isPremium]);
+
   // ---- helpers ----
   const toggleMute = () => {
     const m = !muted;
     setMuted(m);
     saveMuted(m);
+  };
+
+  const toggleDim = () => {
+    const next = !dimEnabled;
+    setDimEnabled(next);
+    saveDimPref(next);
   };
 
   const announce = useCallback(
@@ -201,12 +267,20 @@ export function MafiaCity() {
     setScreen("title");
   };
 
+  // Interstitial only fires here — starting a fresh game from Game Over —
+  // never from the top-bar ⟲ reset, which people tap by accident mid-game.
+  const startNewGameFromGameOver = () => {
+    showInterstitialOnNewGame(isPremium);
+    doReset();
+  };
+
   const resumeLiveGame = () => {
     if (!pendingResume) return;
     const s = pendingResume.state;
     if (!s.phase) s.phase = "night";
     if (!s.round) s.round = 1;
     if (s.godfatherChoice === undefined) s.godfatherChoice = null;
+    if (!Array.isArray(s.eliminationLog)) s.eliminationLog = [];
     s.assignments?.forEach((a) => {
       if (a.alive === undefined) a.alive = true;
     });
@@ -352,6 +426,7 @@ export function MafiaCity() {
       lastWinnerSide: null,
       phase: "night",
       round: 1,
+      eliminationLog: [],
     }));
     setScreen("pass");
   };
@@ -402,6 +477,7 @@ export function MafiaCity() {
     setState((s) => ({
       ...s,
       assignments: s.assignments.map((x) => (x.name === name ? { ...x, alive: false } : x)),
+      eliminationLog: [...s.eliminationLog, name],
     }));
     eliminationBell(muted);
     const wasMafia = ALIGNMENT[a.role] === "mafia";
@@ -410,6 +486,21 @@ export function MafiaCity() {
     } else {
       announce(`${name} was voted out`, `${name} ${wasMafia ? "was" : "was not"} aligned with the Mafia.`);
     }
+  };
+
+  // Phase 2: undo the most recent elimination — a mis-tap shouldn't require
+  // restarting the whole game.
+  const undoLastElimination = () => {
+    setState((s) => {
+      if (!s.eliminationLog.length) return s;
+      const log = [...s.eliminationLog];
+      const name = log.pop() as string;
+      return {
+        ...s,
+        eliminationLog: log,
+        assignments: s.assignments.map((x) => (x.name === name ? { ...x, alive: true } : x)),
+      };
+    });
   };
 
   const doctorMax = DOCTOR_CHANCES[state.n];
@@ -523,6 +614,23 @@ export function MafiaCity() {
     return steps;
   }, [state.assignments, state.n]);
 
+  // Phase 2: auto-narration — chains the night script through speech synth
+  // instead of the Godfather reading it line by line. Gated behind premium.
+  const startNarration = () => {
+    if (!isPremium) {
+      setShowPremiumPrompt(true);
+      return;
+    }
+    if (!nightScript || narrating) return;
+    setNarrating(true);
+    const lines = nightScript.map((step) => `${step.head}. ${step.body}`);
+    speakSequence(lines, muted, () => setNarrating(false));
+  };
+  const stopNarration = () => {
+    cancelSpeakSequence();
+    setNarrating(false);
+  };
+
   // ---- winner / scoreboard ----
   const finishGame = (side: "town" | "mafia") => {
     const scores = loadScores();
@@ -550,6 +658,90 @@ export function MafiaCity() {
     clearLive();
     setScreen("gameOver");
     announce(side === "town" ? "The Town wins!" : "The Mafia wins!", "Every case file is now closed.");
+
+    // Phase 2: review prompt, spaced out so it doesn't collide with the
+    // winner announcement modal, and only after a couple of completed games
+    // so it's not the very first thing a new host sees.
+    const rp = loadReviewPromptState();
+    const updatedRp = { ...rp, gamesCompleted: rp.gamesCompleted + 1 };
+    saveReviewPromptState(updatedRp);
+    if (!updatedRp.shown && updatedRp.gamesCompleted >= 2) {
+      window.setTimeout(() => setShowReviewPrompt(true), 1800);
+    }
+  };
+
+  const dismissReviewPrompt = (permanent: boolean) => {
+    const rp = loadReviewPromptState();
+    saveReviewPromptState({ ...rp, shown: permanent });
+    setShowReviewPrompt(false);
+  };
+
+  const openPlayStore = () => {
+    dismissReviewPrompt(true);
+    window.open(PLAY_STORE_URL, "_blank", "noopener,noreferrer");
+  };
+
+  // Phase 2: shareable results — native share sheet with clipboard fallback.
+  const doShareResult = async () => {
+    const text = buildShareText(state.assignments, state.lastWinnerSide);
+    const outcome = await shareGameResult(text);
+    setShareMsg(
+      outcome === "shared" ? "Shared!" : outcome === "copied" ? "Copied to clipboard!" : "Couldn't share — try again.",
+    );
+    window.setTimeout(() => setShareMsg(null), 2500);
+  };
+
+  // Phase 2: theme selection — premium themes open the upsell prompt instead
+  // of applying until isPremium is true (real gate arrives with Play Billing).
+  const selectTheme = (id: ThemeId) => {
+    if (THEMES[id].premium && !isPremium) {
+      setShowPremiumPrompt(true);
+      return;
+    }
+    setThemeId(id);
+    saveThemeId(id);
+    applyTheme(id);
+  };
+
+  const toggleSimulatedPremium = (v: boolean) => {
+    setIsPremium(v);
+    savePremium(v);
+  };
+
+  const handlePurchasePremium = async () => {
+    setPurchasing(true);
+    setPurchaseMsg(null);
+    const result = await purchasePremium();
+    setPurchasing(false);
+    if (result.ok) {
+      setIsPremium(true);
+      setShowPremiumPrompt(false);
+    } else {
+      setPurchaseMsg(result.error ?? "Purchase failed.");
+    }
+  };
+
+  // Phase 1: backup export/import
+  const onImportFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const text = await file.text();
+    const result = importBackupFromJSON(text);
+    if (result.ok) {
+      setRoleSettings(loadRoleSettings());
+      setAddonSettings(loadAddonSettings());
+      setCardSettings(loadCardSettings());
+      setMuted(loadMuted());
+      const storedTheme = loadThemeId();
+      const resolvedTheme: ThemeId = isThemeId(storedTheme) ? storedTheme : "classic";
+      setThemeId(resolvedTheme);
+      applyTheme(resolvedTheme);
+      setImportMsg("Backup restored successfully.");
+    } else {
+      setImportMsg(result.error);
+    }
+    window.setTimeout(() => setImportMsg(null), 3500);
   };
 
   // ---- settings screen actions ----
@@ -586,7 +778,7 @@ export function MafiaCity() {
 
   // ------- RENDER -------
   return (
-    <div className="mc-app-bg" style={{ minHeight: "100dvh" }}>
+    <div className={`mc-app-bg${dimEnabled ? " mc-dim" : ""}`} style={{ minHeight: "100dvh" }}>
       <div
         style={{
           display: "flex",
@@ -615,6 +807,14 @@ export function MafiaCity() {
               onClick={() => setScreen("settings")}
             >
               ⚙
+            </button>
+            <button
+              className="mc-icon-btn"
+              onClick={toggleDim}
+              title={dimEnabled ? "Turn off dim mode" : "Dim the screen for a dark room"}
+              aria-label="Toggle dim mode"
+            >
+              {dimEnabled ? "☀" : "☾"}
             </button>
             <button
               className="mc-icon-btn"
@@ -740,6 +940,14 @@ export function MafiaCity() {
               removeCustomCard={removeCustomCard}
               onDone={settingsDone}
               onReset={settingsReset}
+              themeId={themeId}
+              selectTheme={selectTheme}
+              isPremium={isPremium}
+              onToggleSimulatedPremium={toggleSimulatedPremium}
+              onExportBackup={exportBackupToFile}
+              onImportFileChosen={onImportFileChosen}
+              fileInputRef={fileInputRef}
+              importMsg={importMsg}
             />
           )}
 
@@ -1062,6 +1270,15 @@ export function MafiaCity() {
                     Confirm
                   </button>
                 </div>
+                <button
+                  className="mc-ghost-btn"
+                  style={{ width: "100%", marginTop: 8, color: "#2a2620", borderColor: "#8a8474" }}
+                  disabled={!state.eliminationLog.length}
+                  title="Undo the most recent elimination — for a mis-tap"
+                  onClick={undoLastElimination}
+                >
+                  Undo last elimination
+                </button>
                 <div style={{ fontSize: 11.5, color: "var(--smoke-dim)", marginTop: 8, fontStyle: "italic" }}>{winHint}</div>
 
                 {hasDoctor && (
@@ -1128,14 +1345,23 @@ export function MafiaCity() {
               </div>
 
               {nightScript && (
-                <div className="mc-script-box">
-                  {nightScript.map((step, i) => (
-                    <div key={i} style={{ marginBottom: i === nightScript.length - 1 ? 0 : 14 }}>
-                      <span className="mc-script-step">{step.head}</span>
-                      {step.body}
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <button
+                    className="mc-ghost-btn"
+                    onClick={narrating ? stopNarration : startNarration}
+                    title={isPremium ? undefined : "Premium feature — see Settings"}
+                  >
+                    {narrating ? "■ Stop narration" : `▶ Auto-narrate night script${isPremium ? "" : " 🔒"}`}
+                  </button>
+                  <div className="mc-script-box">
+                    {nightScript.map((step, i) => (
+                      <div key={i} style={{ marginBottom: i === nightScript.length - 1 ? 0 : 14 }}>
+                        <span className="mc-script-step">{step.head}</span>
+                        {step.body}
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               <button className="mc-primary-btn" onClick={() => setWinnerModal(true)}>
@@ -1190,11 +1416,17 @@ export function MafiaCity() {
                   Wipe the scoreboard on this device
                 </div>
               </div>
+              <button className="mc-ghost-btn" onClick={doShareResult}>
+                Share results
+              </button>
+              {shareMsg && (
+                <div style={{ textAlign: "center", fontSize: 11.5, color: "var(--brass)", marginTop: -10 }}>{shareMsg}</div>
+              )}
               <div style={{ display: "flex", gap: 10 }}>
                 <button className="mc-ghost-btn" style={{ flex: 1 }} onClick={finalizeAssignments}>
                   Replay — same players
                 </button>
-                <button className="mc-primary-btn" style={{ flex: 1 }} onClick={doReset}>
+                <button className="mc-primary-btn" style={{ flex: 1 }} onClick={startNewGameFromGameOver}>
                   Start new game
                 </button>
               </div>
@@ -1334,6 +1566,60 @@ export function MafiaCity() {
       <Modal open={showHistory} onClose={() => setShowHistory(false)}>
         <HistoryPanel />
       </Modal>
+
+      {/* Phase 2 modals */}
+      <Modal open={showPremiumPrompt} onClose={() => setShowPremiumPrompt(false)}>
+        <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Unlock premium</h2>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          A one-time purchase unlocks extra themes and auto-narration, and removes ads for good. No subscription.
+        </p>
+        {purchaseMsg && (
+          <p style={{ fontSize: 12, color: "var(--blood-bright)", marginTop: 6 }}>{purchaseMsg}</p>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+          <button className="mc-primary-btn" onClick={handlePurchasePremium} disabled={purchasing}>
+            {purchasing ? "Processing…" : "Unlock premium"}
+          </button>
+          <button
+            className="mc-ghost-btn"
+            style={{ color: "#2a2620", borderColor: "#8a8474" }}
+            onClick={() => setShowPremiumPrompt(false)}
+          >
+            Not now
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={showReviewPrompt} onClose={() => dismissReviewPrompt(false)}>
+        <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Enjoying Mafia City?</h2>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          If it's been useful for game night, a quick rating on the Play Store helps other hosts find it.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+          <button className="mc-primary-btn" onClick={openPlayStore}>Rate on Play Store</button>
+          <button
+            className="mc-ghost-btn"
+            style={{ color: "#2a2620", borderColor: "#8a8474" }}
+            onClick={() => dismissReviewPrompt(false)}
+          >
+            Maybe later
+          </button>
+          <button
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--smoke-dim)",
+              fontSize: 11.5,
+              textDecoration: "underline",
+              cursor: "pointer",
+              padding: 4,
+            }}
+            onClick={() => dismissReviewPrompt(true)}
+          >
+            Don't ask again
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1396,6 +1682,14 @@ function SettingsScreen(props: {
   removeCustomCard: (name: string) => void;
   onDone: () => void;
   onReset: () => void;
+  themeId: ThemeId;
+  selectTheme: (id: ThemeId) => void;
+  isPremium: boolean;
+  onToggleSimulatedPremium: (v: boolean) => void;
+  onExportBackup: () => void;
+  onImportFileChosen: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  importMsg: string | null;
 }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -1450,6 +1744,93 @@ function SettingsScreen(props: {
           Each add-on takes a Civilian slot. Requires at least one Civilian in the current lineup.
         </div>
       </div>
+
+      {/* Phase 2: theme packs */}
+      <div className="mc-file-card" style={{ textAlign: "left" }}>
+        <div className="mc-file-label">Theme</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+          {(Object.keys(THEMES) as ThemeId[]).map((id) => {
+            const t = THEMES[id];
+            const active = props.themeId === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => props.selectTheme(id)}
+                className="mc-ghost-btn"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  color: "#2a2620",
+                  borderColor: active ? "var(--blood)" : "#8a8474",
+                }}
+              >
+                <span>{t.label}{active ? " ✓" : ""}</span>
+                {t.premium && (
+                  <span style={{ fontSize: 10, color: "var(--brass)", letterSpacing: "0.08em" }}>
+                    {props.isPremium ? "UNLOCKED" : "PREMIUM 🔒"}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Phase 1: backup & restore */}
+      <div className="mc-file-card" style={{ textAlign: "left" }}>
+        <div className="mc-file-label">Backup &amp; restore</div>
+        <div className="mc-hint" style={{ marginTop: 0, marginBottom: 10 }}>
+          Save your scoreboard, history, and settings to a file — or restore them after switching phones.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="mc-ghost-btn"
+            style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }}
+            onClick={props.onExportBackup}
+          >
+            Export backup
+          </button>
+          <button
+            className="mc-ghost-btn"
+            style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }}
+            onClick={() => props.fileInputRef.current?.click()}
+          >
+            Import backup
+          </button>
+        </div>
+        <input
+          ref={props.fileInputRef}
+          type="file"
+          accept="application/json"
+          style={{ display: "none" }}
+          onChange={props.onImportFileChosen}
+        />
+        {props.importMsg && (
+          <div style={{ fontSize: 11.5, color: "var(--blood)", marginTop: 8 }}>{props.importMsg}</div>
+        )}
+      </div>
+
+      {/* Phase 2/3: premium simulation until Play Billing is wired in */}
+      <div className="mc-file-card" style={{ textAlign: "left" }}>
+        <div className="mc-file-label">Developer</div>
+        <label style={toggleRowStyle}>
+          <input
+            type="checkbox"
+            checked={props.isPremium}
+            onChange={(e) => props.onToggleSimulatedPremium(e.target.checked)}
+            style={{ width: 18, height: 18, accentColor: "var(--blood)", flexShrink: 0 }}
+          />
+          <span style={{ flex: 1 }}>
+            Simulate premium unlock
+            <span style={{ display: "block", fontSize: 10.5, color: "var(--smoke-dim)", fontStyle: "italic", marginTop: 2 }}>
+              Testing only — remove once real Play Billing is wired in.
+            </span>
+          </span>
+        </label>
+      </div>
+
       <div className="mc-file-card" style={{ textAlign: "left" }}>
         <div className="mc-file-label">Action cards in the deck</div>
         <div>
@@ -1587,7 +1968,7 @@ function InfoContent() {
       <ModalDivider />
       <h3 style={{ fontSize: 13, color: "var(--blood)" }}>Top bar</h3>
       <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        <b>⚙</b> customize roles &amp; cards · <b>♪</b> mute sound/vibration · <b>i</b> these rules · <b>⟲</b> abandon this game.
+        <b>⚙</b> customize roles &amp; cards · <b>☾</b> dim the screen for a dark room · <b>♪</b> mute sound/vibration · <b>i</b> these rules · <b>⟲</b> abandon this game.
       </p>
     </>
   );
