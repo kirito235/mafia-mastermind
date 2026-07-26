@@ -67,12 +67,16 @@ import { initAds, showBanner, hideBanner, showInterstitialOnNewGame } from "@/li
 import { checkPremiumStatus, purchasePremium } from "@/lib/mafia/billing";
 import { Seal } from "./Seal";
 import { Modal, ModalDivider } from "./Modal";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 // TODO: replace with the real Play Store listing once the app is published.
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.yourcompany.mafiacity";
 
 type Screen =
   | "title"
+  | "leaderboard"
+  | "shop"
   | "settings"
   | "nameEntry"
   | "nameReview"
@@ -81,6 +85,8 @@ type Screen =
   | "finalSeal"
   | "dashboard"
   | "gameOver";
+
+const HUB_SCREENS: Screen[] = ["title", "leaderboard", "shop", "settings"];
 
 type Phase = "night" | "day";
 
@@ -132,6 +138,7 @@ export function MafiaCity() {
   const [addonSettings, setAddonSettings] = useState<AddonSettings>(defaultAddonSettings());
   const [cardSettings, setCardSettings] = useState<CardSettings>({ disabled: [], custom: [] });
   const [showHistory, setShowHistory] = useState(false);
+  const [dashTab, setDashTab] = useState<"roster" | "tools" | "script">("roster");
 
   const [showInfo, setShowInfo] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -202,7 +209,7 @@ export function MafiaCity() {
         if ("wakeLock" in navigator) {
           lock = await navigator.wakeLock.request("screen");
         }
-      } catch {}
+      } catch { }
     };
     const onVis = () => {
       if (document.visibilityState === "visible" && !lock) req();
@@ -215,7 +222,7 @@ export function MafiaCity() {
       document.removeEventListener("pointerdown", onFirstPointer);
       try {
         lock?.release();
-      } catch {}
+      } catch { }
     };
   }, []);
 
@@ -521,8 +528,8 @@ export function MafiaCity() {
     aliveMafia === 0
       ? "All Mafia-aligned players are eliminated — looks like the Town has won."
       : aliveMafia >= aliveTown
-      ? "Mafia now equal or outnumber the Town — looks like the Mafia has won."
-      : `Still alive: ${aliveTown} Town-aligned, ${aliveMafia} Mafia-aligned. No side has won yet.`;
+        ? "Mafia now equal or outnumber the Town — looks like the Mafia has won."
+        : `Still alive: ${aliveTown} Town-aligned, ${aliveMafia} Mafia-aligned. No side has won yet.`;
 
   // Timer
   const [timerTotal, setTimerTotal] = useState(120);
@@ -576,40 +583,46 @@ export function MafiaCity() {
     if (!gf) return null;
     const chances = DOCTOR_CHANCES[state.n];
     const has = (r: Role) => state.assignments.some((a) => a.role === r);
-    const steps: { head: string; body: string }[] = [
-      { head: "① NIGHT BEGINS", body: `${gf.name} (Godfather) says: "City goes to sleep." Everyone closes their eyes.` },
+    const steps: { head: string; say: string; body: string }[] = [
+      {
+        head: "① NIGHT BEGINS",
+        say: "Everyone, close your eyes. The city goes to sleep.",
+        body: "Wait until the table is fully quiet before continuing.",
+      },
     ];
     if (has("Jailer"))
       steps.push({
         head: "② JAILER",
-        body:
-          "Wake the Jailer. They silently point to one player to lock up for the night. Announce who's jailed, then Jailer sleeps again. That player skips all night actions.",
+        say: "Jailer, wake up. Point to the player you want to jail tonight.",
+        body: "Note who they pick, then say: \"Jailer, go back to sleep.\" That player skips all night actions.",
       });
     steps.push({
       head: "③ MAFIA",
-      body: "Wake the Mafia. They silently agree on one player to eliminate, then point together. Mafia sleeps again.",
+      say: "Mafia, wake up. Choose your target together and point.",
+      body: 'Once they agree, say: "Mafia, go back to sleep."',
     });
     if (has("Doctor"))
       steps.push({
         head: "④ DOCTOR",
-        body: `Wake the Doctor. Point to the Mafia's target — Doctor nods to save or shakes their head. Doctor has ${chances} saves for the whole game — track them below. Doctor sleeps again.`,
+        say: "Doctor, wake up. Do you want to save tonight's target?",
+        body: `Point to the Mafia's target. Doctor nods to save, shakes their head to pass. ${chances} saves total this game — track them below, then say: "Doctor, go back to sleep."`,
       });
     if (has("Detective"))
       steps.push({
         head: "⑤ DETECTIVE",
-        body:
-          "Wake the Detective. They point to a suspect. Nod or shake your head to say whether the guess is right. Detective sleeps again.",
+        say: "Detective, wake up. Point to the player you want to investigate.",
+        body: 'Nod for a correct guess, shake your head if wrong. Then: "Detective, go back to sleep."',
       });
     steps.push({
       head: "⑥ DAY BEGINS",
-      body:
-        'Everyone wakes. If someone died, name them — nothing more. If nobody died, just say "no one was eliminated last night" and stop there. Open the floor for discussion, then hold a vote. Announce whoever\'s voted out by name. Repeat the Night → Day cycle until one side wins, then declare the winner below.',
+      say: "Everyone, wake up.",
+      body: 'If someone died, name them and nothing else. If nobody did, say "no one was eliminated last night." Then open the floor, hold a vote, and announce who\'s voted out.',
     });
     if (has("Jailer"))
       steps.push({
-        head: "HOUSE RULE — PROTECT THE JAILER",
-        body:
-          "Never say why nobody died. Staying flat and unexplained keeps the Jailer just as hard to identify as anyone else.",
+        head: "HOUSE RULE — DON'T SAY ALOUD",
+        say: "(reminder for you only)",
+        body: "Never explain why nobody died. Staying flat protects the Jailer's identity just as much as everyone else's.",
       });
     return steps;
   }, [state.assignments, state.n]);
@@ -623,7 +636,7 @@ export function MafiaCity() {
     }
     if (!nightScript || narrating) return;
     setNarrating(true);
-    const lines = nightScript.map((step) => `${step.head}. ${step.body}`);
+    const lines = nightScript.filter((step) => !step.head.startsWith("HOUSE RULE")).map((step) => step.say);
     speakSequence(lines, muted, () => setNarrating(false));
   };
   const stopNarration = () => {
@@ -777,6 +790,8 @@ export function MafiaCity() {
   };
 
   // ------- RENDER -------
+  const showBottomNav = HUB_SCREENS.includes(screen);
+
   return (
     <div className={`mc-app-bg${dimEnabled ? " mc-dim" : ""}`} style={{ minHeight: "100dvh" }}>
       <div
@@ -785,7 +800,7 @@ export function MafiaCity() {
           alignItems: "flex-start",
           justifyContent: "center",
           minHeight: "100dvh",
-          padding: "20px 16px calc(20px + env(safe-area-inset-bottom))",
+          padding: `20px 16px calc(${showBottomNav ? 78 : 20}px + env(safe-area-inset-bottom))`,
         }}
       >
         <div
@@ -799,15 +814,8 @@ export function MafiaCity() {
           }}
         >
           {/* Top bar */}
+          {/* Top bar */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingBottom: 10, flexShrink: 0 }}>
-            <button
-              className="mc-icon-btn"
-              title="Customize roles & action cards"
-              aria-label="Customize roles & action cards"
-              onClick={() => setScreen("settings")}
-            >
-              ⚙
-            </button>
             <button
               className="mc-icon-btn"
               onClick={toggleDim}
@@ -824,20 +832,37 @@ export function MafiaCity() {
             >
               {muted ? "⊘" : "♪"}
             </button>
-            <button
-              className="mc-icon-btn"
-              title="Game history"
-              aria-label="Game history"
-              onClick={() => setShowHistory(true)}
-            >
-              ☰
-            </button>
-            <button className="mc-icon-btn" title="Rules & instructions" aria-label="Rules" onClick={() => setShowInfo(true)}>
-              i
-            </button>
-            <button className="mc-icon-btn" title="Start new game" aria-label="New game" onClick={() => setShowConfirmReset(true)}>
-              ⟲
-            </button>
+            <Sheet>
+              <SheetTrigger asChild>
+                <button className="mc-icon-btn" title="Menu" aria-label="Menu">
+                  ☰
+                </button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Mafia City</SheetTitle>
+                </SheetHeader>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 20 }}>
+                  <button className="mc-ghost-btn" onClick={() => setShowInfo(true)}>
+                    📖 Rules & How to Play
+                  </button>
+                  <button className="mc-ghost-btn" onClick={() => setShowHistory(true)}>
+                    🗂 Game History
+                  </button>
+                  <button className="mc-ghost-btn" onClick={() => setScreen("settings")}>
+                    ⚙ Roles & Action Cards
+                  </button>
+                  <div className="mc-divider" />
+                  <button
+                    className="mc-ghost-btn"
+                    style={{ color: "var(--blood)", borderColor: "var(--blood)" }}
+                    onClick={() => setShowConfirmReset(true)}
+                  >
+                    ⟲ Start New Game
+                  </button>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
 
           {screen === "title" && (
@@ -926,6 +951,19 @@ export function MafiaCity() {
                 Inspect a Sample Dossier
               </button>
             </div>
+          )}
+
+          {screen === "leaderboard" && <LeaderboardScreen />}
+
+          {screen === "shop" && (
+            <ShopScreen
+              themeId={themeId}
+              selectTheme={selectTheme}
+              isPremium={isPremium}
+              purchasing={purchasing}
+              purchaseMsg={purchaseMsg}
+              onPurchase={handlePurchasePremium}
+            />
           )}
 
           {screen === "settings" && (
@@ -1155,16 +1193,16 @@ export function MafiaCity() {
                   {previewMode
                     ? "This is a sample file just to show what a reveal looks like. It won't count toward any game."
                     : isLastReveal
-                    ? "That's everyone. If you're the Godfather, take the phone now — you'll break the final seal next."
-                    : "Memorize this, then seal it back up. Don't say it out loud — Mafia and Terrorist know each other, everyone else is guessing."}
+                      ? "That's everyone. If you're the Godfather, take the phone now — you'll break the final seal next."
+                      : "Memorize this, then seal it back up. Don't say it out loud — Mafia and Terrorist know each other, everyone else is guessing."}
                 </span>
               </div>
               <button className="mc-primary-btn" onClick={onSealAgain}>
                 {previewMode
                   ? "Done previewing — back to setup"
                   : isLastReveal
-                  ? "Seal file — every player has one now"
-                  : "Seal file & pass to next player"}
+                    ? "Seal file — every player has one now"
+                    : "Seal file & pass to next player"}
               </button>
             </div>
           )}
@@ -1186,12 +1224,12 @@ export function MafiaCity() {
           )}
 
           {screen === "dashboard" && (
-            <div className="mc-screen" style={{ gap: 16 }}>
-              <div>
+            <div className="mc-screen" style={{ gap: 10, height: "calc(100dvh - 100px)", overflow: "hidden" }}>
+              <div style={{ flexShrink: 0 }}>
                 <div className="mc-eyebrow">For the Godfather's eyes only</div>
                 <h2>Master File</h2>
               </div>
-              <div className="mc-file-card" style={{ textAlign: "center" }}>
+              <div className="mc-file-card" style={{ textAlign: "center", flexShrink: 0 }}>
                 <div className="mc-file-label" style={{ textAlign: "center" }}>Current phase</div>
                 <div style={{ fontFamily: "var(--font-display)", fontSize: 24, color: "var(--brass)", letterSpacing: "0.1em", textAlign: "center", margin: "2px 0 10px" }}>
                   {state.phase === "night" ? "NIGHT" : "DAY"} {state.round}
@@ -1201,170 +1239,197 @@ export function MafiaCity() {
                 </button>
               </div>
 
-              <div className="mc-file-card">
-                <div className="mc-file-label">Master roster</div>
-                <table className="mc-roster">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Role</th>
-                      <th>Action card</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.assignments.map((a, i) => (
-                      <tr
-                        key={i}
-                        onClick={() => setDetailModal(a)}
-                        style={{ opacity: a.alive === false ? 0.45 : 1, cursor: "pointer" }}
-                      >
-                        <td>
-                          {a.alive === false ? (
-                            <>
-                              <span style={{ textDecoration: "line-through" }}>{a.name}</span> ☠
-                            </>
-                          ) : (
-                            a.name
-                          )}
-                        </td>
-                        <td className={ALIGNMENT[a.role] === "mafia" ? "mc-role-mafia" : "mc-role-normal"}>{a.role}</td>
-                        <td>{a.card ? a.card[0] : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
-                  Tap any row to read that role's full description. Eliminated players stay listed, struck through.
-                </div>
-
-                <div className="mc-file-divider" />
-                <div className="mc-file-label">
-                  {state.phase === "night" ? "Night action — who was eliminated?" : "Day vote — who was voted out?"}
-                </div>
-                <select className="mc-gf-select" value={eliminatePick} onChange={(e) => setEliminatePick(e.target.value)}>
-                  {aliveNoGf.map((a) => (
-                    <option key={a.name} value={a.name}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {(
+                  [
+                    { id: "roster" as const, label: "Roster & Vote" },
+                    { id: "tools" as const, label: "Doctor & Timer" },
+                    ...(nightScript ? [{ id: "script" as const, label: "Script" }] : []),
+                  ]
+                ).map((t) => (
                   <button
+                    key={t.id}
                     className="mc-ghost-btn"
-                    style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }}
-                    disabled={!aliveNoGf.length}
-                    onClick={() =>
-                      state.phase === "night"
-                        ? announce("No one was eliminated", "The night passed without a kill.")
-                        : announce("No one was voted out", "The vote didn't reach a majority.")
-                    }
+                    style={{
+                      flex: 1,
+                      fontSize: 11,
+                      padding: "8px 4px",
+                      color: dashTab === t.id ? "var(--paper)" : "#2a2620",
+                      background: dashTab === t.id ? "var(--blood)" : "transparent",
+                      borderColor: dashTab === t.id ? "var(--blood)" : "#8a8474",
+                    }}
+                    onClick={() => setDashTab(t.id)}
                   >
-                    No one this round
+                    {t.label}
                   </button>
-                  <button
-                    className="mc-primary-btn"
-                    style={{ flex: 2 }}
-                    disabled={!aliveNoGf.length}
-                    onClick={() => eliminatePick && eliminatePlayer(eliminatePick)}
-                  >
-                    Confirm
-                  </button>
-                </div>
-                <button
-                  className="mc-ghost-btn"
-                  style={{ width: "100%", marginTop: 8, color: "#2a2620", borderColor: "#8a8474" }}
-                  disabled={!state.eliminationLog.length}
-                  title="Undo the most recent elimination — for a mis-tap"
-                  onClick={undoLastElimination}
-                >
-                  Undo last elimination
-                </button>
-                <div style={{ fontSize: 11.5, color: "var(--smoke-dim)", marginTop: 8, fontStyle: "italic" }}>{winHint}</div>
+                ))}
+              </div>
 
-                {hasDoctor && (
-                  <>
-                    <div className="mc-file-divider" />
-                    <div className="mc-file-label">Doctor saves used</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 26, color: "var(--blood)", textAlign: "center", margin: "6px 0 10px" }}>
-                      {state.doctorSavesUsed} / {doctorMax}
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+                {dashTab === "roster" && (
+                  <div className="mc-file-card">
+                    <div className="mc-file-label">Master roster</div>
+                    <table className="mc-roster">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Role</th>
+                          <th>Action card</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {state.assignments.map((a, i) => (
+                          <tr
+                            key={i}
+                            onClick={() => setDetailModal(a)}
+                            style={{ opacity: a.alive === false ? 0.45 : 1, cursor: "pointer" }}
+                          >
+                            <td>
+                              {a.alive === false ? (
+                                <>
+                                  <span style={{ textDecoration: "line-through" }}>{a.name}</span> ☠
+                                </>
+                              ) : (
+                                a.name
+                              )}
+                            </td>
+                            <td className={ALIGNMENT[a.role] === "mafia" ? "mc-role-mafia" : "mc-role-normal"}>{a.role}</td>
+                            <td>{a.card ? a.card[0] : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
+                      Tap any row to read that role's full description. Eliminated players stay listed, struck through.
                     </div>
-                    <div style={{ display: "flex", gap: 10 }}>
+
+                    <div className="mc-file-divider" />
+                    <div className="mc-file-label">
+                      {state.phase === "night" ? "Night action — who was eliminated?" : "Day vote — who was voted out?"}
+                    </div>
+                    <select className="mc-gf-select" value={eliminatePick} onChange={(e) => setEliminatePick(e.target.value)}>
+                      {aliveNoGf.map((a) => (
+                        <option key={a.name} value={a.name}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                       <button
                         className="mc-ghost-btn"
-                        style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474", visibility: state.doctorSavesUsed > 0 ? "visible" : "hidden" }}
-                        onClick={() => setState((s) => ({ ...s, doctorSavesUsed: Math.max(0, s.doctorSavesUsed - 1) }))}
+                        style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }}
+                        disabled={!aliveNoGf.length}
+                        onClick={() =>
+                          state.phase === "night"
+                            ? announce("No one was eliminated", "The night passed without a kill.")
+                            : announce("No one was voted out", "The vote didn't reach a majority.")
+                        }
                       >
-                        −1
+                        No one this round
                       </button>
                       <button
                         className="mc-primary-btn"
                         style={{ flex: 2 }}
-                        disabled={state.doctorSavesUsed >= doctorMax}
-                        onClick={() => setState((s) => ({ ...s, doctorSavesUsed: Math.min(doctorMax, s.doctorSavesUsed + 1) }))}
+                        disabled={!aliveNoGf.length}
+                        onClick={() => eliminatePick && eliminatePlayer(eliminatePick)}
                       >
-                        Doctor used a save
+                        Confirm
                       </button>
+                    </div>
+                    <button
+                      className="mc-ghost-btn"
+                      style={{ width: "100%", marginTop: 8, color: "#2a2620", borderColor: "#8a8474" }}
+                      disabled={!state.eliminationLog.length}
+                      title="Undo the most recent elimination — for a mis-tap"
+                      onClick={undoLastElimination}
+                    >
+                      Undo last elimination
+                    </button>
+                    <div style={{ fontSize: 11.5, color: "var(--smoke-dim)", marginTop: 8, fontStyle: "italic" }}>{winHint}</div>
+                  </div>
+                )}
+
+                {dashTab === "tools" && (
+                  <>
+                    {hasDoctor && (
+                      <div className="mc-file-card">
+                        <div className="mc-file-label" style={{ marginTop: 0 }}>Doctor saves used</div>
+                        <div style={{ fontFamily: "var(--font-display)", fontSize: 26, color: "var(--blood)", textAlign: "center", margin: "6px 0 10px" }}>
+                          {state.doctorSavesUsed} / {doctorMax}
+                        </div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button
+                            className="mc-ghost-btn"
+                            style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474", visibility: state.doctorSavesUsed > 0 ? "visible" : "hidden" }}
+                            onClick={() => setState((s) => ({ ...s, doctorSavesUsed: Math.max(0, s.doctorSavesUsed - 1) }))}
+                          >
+                            −1
+                          </button>
+                          <button
+                            className="mc-primary-btn"
+                            style={{ flex: 2 }}
+                            disabled={state.doctorSavesUsed >= doctorMax}
+                            onClick={() => setState((s) => ({ ...s, doctorSavesUsed: Math.min(doctorMax, s.doctorSavesUsed + 1) }))}
+                          >
+                            Doctor used a save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mc-file-card">
+                      <div className="mc-file-label" style={{ marginTop: 0 }}>Day Phase discussion timer</div>
+                      <div className={`mc-timer-display ${!timerRunning && timerRemaining <= 0 ? "mc-timer-done" : ""}`}>{timerText}</div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                        {[60, 120, 180].map((secs) => (
+                          <button
+                            key={secs}
+                            onClick={() => setTimerPreset(secs)}
+                            style={{
+                              flex: 1,
+                              padding: "9px 6px",
+                              fontSize: 11,
+                              fontFamily: "var(--font-display)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.1em",
+                              borderRadius: 3,
+                              cursor: "pointer",
+                              border: `1px solid ${timerTotal === secs ? "var(--blood)" : "#8a8474"}`,
+                              background: timerTotal === secs ? "var(--blood)" : "transparent",
+                              color: timerTotal === secs ? "var(--paper)" : "#2a2620",
+                            }}
+                          >
+                            {secs / 60} min
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button className="mc-primary-btn" style={{ flex: 2 }} onClick={() => (timerRunning ? pauseTimer() : startTimer())}>
+                          {timerRunning ? "Pause" : "Start"}
+                        </button>
+                        <button className="mc-ghost-btn" style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }} onClick={resetTimer}>
+                          Reset
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
 
-                <div className="mc-file-divider" />
-                <div className="mc-file-label">Day Phase discussion timer</div>
-                <div className={`mc-timer-display ${!timerRunning && timerRemaining <= 0 ? "mc-timer-done" : ""}`}>{timerText}</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  {[60, 120, 180].map((secs) => (
+                {dashTab === "script" && nightScript && (
+                  <>
                     <button
-                      key={secs}
-                      onClick={() => setTimerPreset(secs)}
-                      style={{
-                        flex: 1,
-                        padding: "9px 6px",
-                        fontSize: 11,
-                        fontFamily: "var(--font-display)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        borderRadius: 3,
-                        cursor: "pointer",
-                        border: `1px solid ${timerTotal === secs ? "var(--blood)" : "#8a8474"}`,
-                        background: timerTotal === secs ? "var(--blood)" : "transparent",
-                        color: timerTotal === secs ? "var(--paper)" : "#2a2620",
-                      }}
+                      className="mc-ghost-btn"
+                      onClick={narrating ? stopNarration : startNarration}
+                      title={isPremium ? undefined : "Premium feature — see Settings"}
                     >
-                      {secs / 60} min
+                      {narrating ? "■ Stop narration" : `▶ Auto-narrate night script${isPremium ? "" : " 🔒"}`}
                     </button>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button className="mc-primary-btn" style={{ flex: 2 }} onClick={() => (timerRunning ? pauseTimer() : startTimer())}>
-                    {timerRunning ? "Pause" : "Start"}
-                  </button>
-                  <button className="mc-ghost-btn" style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }} onClick={resetTimer}>
-                    Reset
-                  </button>
-                </div>
+                    <NightScriptStepper steps={nightScript} resetKey={state.round} />
+                  </>
+                )}
               </div>
 
-              {nightScript && (
-                <>
-                  <button
-                    className="mc-ghost-btn"
-                    onClick={narrating ? stopNarration : startNarration}
-                    title={isPremium ? undefined : "Premium feature — see Settings"}
-                  >
-                    {narrating ? "■ Stop narration" : `▶ Auto-narrate night script${isPremium ? "" : " 🔒"}`}
-                  </button>
-                  <div className="mc-script-box">
-                    {nightScript.map((step, i) => (
-                      <div key={i} style={{ marginBottom: i === nightScript.length - 1 ? 0 : 14 }}>
-                        <span className="mc-script-step">{step.head}</span>
-                        {step.body}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <button className="mc-primary-btn" onClick={() => setWinnerModal(true)}>
+              <button className="mc-primary-btn" style={{ flexShrink: 0 }} onClick={() => setWinnerModal(true)}>
                 Declare winner & end game
               </button>
             </div>
@@ -1437,6 +1502,8 @@ export function MafiaCity() {
           )}
         </div>
       </div>
+
+      {showBottomNav && <BottomNav active={screen} onNavigate={setScreen} />}
 
       {/* Modals */}
       <Modal open={!!announceMsg} onClose={() => { setAnnounceMsg(null); cancelSpeech(); }}>
@@ -1639,6 +1706,237 @@ function arrowBtnStyle(disabled: boolean): React.CSSProperties {
   };
 }
 
+function NightScriptStepper({
+  steps,
+  resetKey,
+}: {
+  steps: { head: string; say: string; body: string }[];
+  resetKey: number;
+}) {
+  const [i, setI] = useState(0);
+  const [showFull, setShowFull] = useState(false);
+  useEffect(() => setI(0), [resetKey]);
+
+  if (showFull) {
+    return (
+      <div className="mc-script-box">
+        {steps.map((step, idx) => (
+          <div key={idx} style={{ marginBottom: idx === steps.length - 1 ? 0 : 14 }}>
+            <span className="mc-script-step">{step.head}</span>
+            <div style={{ fontStyle: "italic", color: "var(--paper)", margin: "2px 0 4px" }}>"{step.say}"</div>
+            {step.body}
+          </div>
+        ))}
+        <button className="mc-ghost-btn" style={{ width: "100%", marginTop: 12 }} onClick={() => setShowFull(false)}>
+          Switch to step-by-step
+        </button>
+      </div>
+    );
+  }
+
+  const step = steps[i];
+  return (
+    <div className="mc-script-box">
+      <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+        {steps.map((_, idx) => (
+          <div
+            key={idx}
+            style={{ flex: 1, height: 4, borderRadius: 2, background: idx <= i ? "var(--brass)" : "var(--smoke-dim)" }}
+          />
+        ))}
+      </div>
+      <span className="mc-script-step">{step.head}</span>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "var(--paper)", margin: "8px 0", lineHeight: 1.4 }}>
+        "{step.say}"
+      </div>
+      <p style={{ margin: 0, fontSize: 11.5, color: "var(--smoke)" }}>{step.body}</p>
+      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        <button className="mc-ghost-btn" disabled={i === 0} onClick={() => setI((n) => n - 1)}>
+          Back
+        </button>
+        <button
+          className="mc-primary-btn"
+          style={{ flex: 1 }}
+          disabled={i === steps.length - 1}
+          onClick={() => setI((n) => n + 1)}
+        >
+          {i === steps.length - 1 ? "Done for tonight" : "Next step"}
+        </button>
+      </div>
+      <button className="mc-ghost-btn" style={{ width: "100%", marginTop: 8, fontSize: 10.5 }} onClick={() => setShowFull(true)}>
+        View full script instead
+      </button>
+    </div>
+  );
+}
+
+function BottomNav({ active, onNavigate }: { active: Screen; onNavigate: (s: Screen) => void }) {
+  const tabs: { id: Screen; label: string; icon: string }[] = [
+    { id: "title", label: "Play", icon: "🎭" },
+    { id: "leaderboard", label: "Leaders", icon: "🏆" },
+    { id: "shop", label: "Shop", icon: "🛍" },
+    { id: "settings", label: "Settings", icon: "⚙" },
+  ];
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        display: "flex",
+        justifyContent: "center",
+        background: "var(--ink-2)",
+        borderTop: "1px solid var(--smoke-dim)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        zIndex: 40,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 440, display: "flex" }}>
+        {tabs.map((t) => {
+          const isActive = active === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onNavigate(t.id)}
+              style={{
+                flex: 1,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 3,
+                padding: "10px 4px 8px",
+                color: isActive ? "var(--brass)" : "var(--smoke)",
+              }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                {t.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardScreen() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  useEffect(() => {
+    setEntries(loadHistory());
+  }, []);
+
+  return (
+    <div className="mc-screen" style={{ height: "calc(100dvh - 158px)", gap: 10 }}>
+      <div style={{ flexShrink: 0 }}>
+        <div className="mc-eyebrow">The Bureau's Records</div>
+        <h2>Leaderboard</h2>
+      </div>
+      <Tabs defaultValue="scores" className="flex flex-col flex-1 min-h-0">
+        <TabsList className="w-full grid grid-cols-2 flex-shrink-0">
+          <TabsTrigger value="scores">Standings</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="scores" className="flex-1 min-h-0 overflow-y-auto mt-3">
+          <div className="mc-file-card" style={{ textAlign: "left" }}>
+            <Scoreboard />
+          </div>
+        </TabsContent>
+        <TabsContent value="history" className="flex-1 min-h-0 overflow-y-auto mt-3">
+          {entries.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--smoke)", fontStyle: "italic", textAlign: "center", marginTop: 20 }}>
+              No games recorded yet. Finish a round and it'll appear here.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {entries.map((e, i) => (
+                <div key={i} className="mc-file-card" style={{ textAlign: "left" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--smoke-dim)" }}>{new Date(e.date).toLocaleString()}</span>
+                    <span style={{ fontSize: 12, color: e.winner === "town" ? "var(--brass)" : "var(--blood)", fontWeight: 700, letterSpacing: "0.1em" }}>
+                      {e.winner === "town" ? "TOWN" : "MAFIA"} WON
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, fontSize: 12 }}>
+                    {e.players.map((p, j) => (
+                      <span key={j} style={{ padding: "2px 6px", border: "1px solid #8a8474", borderRadius: 3, background: p.won ? "rgba(184,134,11,0.15)" : "transparent" }}>
+                        {p.name} <span style={{ color: "var(--smoke-dim)" }}>· {p.role}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ShopScreen(props: {
+  themeId: ThemeId;
+  selectTheme: (id: ThemeId) => void;
+  isPremium: boolean;
+  purchasing: boolean;
+  purchaseMsg: string | null;
+  onPurchase: () => void;
+}) {
+  return (
+    <div className="mc-screen" style={{ height: "calc(100dvh - 158px)", gap: 10 }}>
+      <div style={{ flexShrink: 0 }}>
+        <div className="mc-eyebrow">The Bureau's Vault</div>
+        <h2>Shop</h2>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        {!props.isPremium && (
+          <div className="mc-file-card" style={{ textAlign: "left", border: "2px solid var(--brass)" }}>
+            <div className="mc-file-label" style={{ marginTop: 0 }}>Premium Unlock</div>
+            <p className="mc-file-text">
+              One-time purchase. Unlocks every premium theme below, plus auto-narration for the night script. No subscription, ever.
+            </p>
+            {props.purchaseMsg && <p style={{ fontSize: 12, color: "var(--blood)" }}>{props.purchaseMsg}</p>}
+            <button className="mc-primary-btn" style={{ width: "100%", marginTop: 8 }} onClick={props.onPurchase} disabled={props.purchasing}>
+              {props.purchasing ? "Processing…" : "Unlock Premium"}
+            </button>
+          </div>
+        )}
+        <div className="mc-file-card" style={{ textAlign: "left" }}>
+          <div className="mc-file-label" style={{ marginTop: 0 }}>Themes</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+            {(Object.keys(THEMES) as ThemeId[]).map((id) => {
+              const t = THEMES[id];
+              const active = props.themeId === id;
+              const locked = t.premium && !props.isPremium;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => !locked && props.selectTheme(id)}
+                  className="mc-ghost-btn"
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#2a2620", borderColor: active ? "var(--blood)" : "#8a8474", opacity: locked ? 0.55 : 1 }}
+                >
+                  <span>{t.label}{active ? " ✓" : ""}</span>
+                  {t.premium && (
+                    <span style={{ fontSize: 10, color: "var(--brass)", letterSpacing: "0.08em" }}>
+                      {props.isPremium ? "UNLOCKED" : "🔒 PREMIUM"}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Scoreboard() {
   const [scores, setScores] = useState(() => loadScores());
   useEffect(() => {
@@ -1695,12 +1993,18 @@ function SettingsScreen(props: {
   const [desc, setDesc] = useState("");
   const allCards = ACTION_CARDS.concat(props.cardSettings.custom);
   return (
-    <div className="mc-screen">
-      <div>
-        <div className="mc-eyebrow">Settings</div>
-        <h2>Roles &amp; action cards</h2>
-        <div className="mc-hint">Saved on this device — every game uses this setup until you change it again.</div>
+    <div className="mc-screen" style={{ height: "calc(100dvh - 100px)", overflow: "hidden", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
+        <div>
+          <div className="mc-eyebrow">Settings</div>
+          <h2>Roles &amp; action cards</h2>
+          <div className="mc-hint">Saved on this device — every game uses this setup until you change it again.</div>
+        </div>
+        <button className="mc-icon-btn" style={{ flexShrink: 0 }} aria-label="Close settings" title="Close" onClick={props.onDone}>
+          ✕
+        </button>
       </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}></div>
       <div className="mc-file-card" style={{ textAlign: "left" }}>
         <div className="mc-file-label">Optional roles</div>
         <div>
@@ -1745,39 +2049,6 @@ function SettingsScreen(props: {
         </div>
       </div>
 
-      {/* Phase 2: theme packs */}
-      <div className="mc-file-card" style={{ textAlign: "left" }}>
-        <div className="mc-file-label">Theme</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
-          {(Object.keys(THEMES) as ThemeId[]).map((id) => {
-            const t = THEMES[id];
-            const active = props.themeId === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => props.selectTheme(id)}
-                className="mc-ghost-btn"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  color: "#2a2620",
-                  borderColor: active ? "var(--blood)" : "#8a8474",
-                }}
-              >
-                <span>{t.label}{active ? " ✓" : ""}</span>
-                {t.premium && (
-                  <span style={{ fontSize: 10, color: "var(--brass)", letterSpacing: "0.08em" }}>
-                    {props.isPremium ? "UNLOCKED" : "PREMIUM 🔒"}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Phase 1: backup & restore */}
       <div className="mc-file-card" style={{ textAlign: "left" }}>
         <div className="mc-file-label">Backup &amp; restore</div>
@@ -1812,24 +2083,26 @@ function SettingsScreen(props: {
         )}
       </div>
 
-      {/* Phase 2/3: premium simulation until Play Billing is wired in */}
-      <div className="mc-file-card" style={{ textAlign: "left" }}>
-        <div className="mc-file-label">Developer</div>
-        <label style={toggleRowStyle}>
-          <input
-            type="checkbox"
-            checked={props.isPremium}
-            onChange={(e) => props.onToggleSimulatedPremium(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: "var(--blood)", flexShrink: 0 }}
-          />
-          <span style={{ flex: 1 }}>
-            Simulate premium unlock
-            <span style={{ display: "block", fontSize: 10.5, color: "var(--smoke-dim)", fontStyle: "italic", marginTop: 2 }}>
-              Testing only — remove once real Play Billing is wired in.
+      {/* Dev-only toggle — automatically stripped from production builds */}
+      {import.meta.env.DEV && (
+        <div className="mc-file-card" style={{ textAlign: "left" }}>
+          <div className="mc-file-label">Developer</div>
+          <label style={toggleRowStyle}>
+            <input
+              type="checkbox"
+              checked={props.isPremium}
+              onChange={(e) => props.onToggleSimulatedPremium(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: "var(--blood)", flexShrink: 0 }}
+            />
+            <span style={{ flex: 1 }}>
+              Simulate premium unlock
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--smoke-dim)", fontStyle: "italic", marginTop: 2 }}>
+                Dev builds only.
+              </span>
             </span>
-          </span>
-        </label>
-      </div>
+          </label>
+        </div>
+      )}
 
       <div className="mc-file-card" style={{ textAlign: "left" }}>
         <div className="mc-file-label">Action cards in the deck</div>
@@ -1915,8 +2188,14 @@ function SettingsScreen(props: {
           Add card
         </button>
       </div>
-      <button className="mc-primary-btn" onClick={props.onDone}>Save & back</button>
-      <button className="mc-ghost-btn" onClick={props.onReset}>Reset everything to defaults</button>
+      <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+        <button className="mc-ghost-btn" style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }} onClick={props.onReset}>
+          Reset defaults
+        </button>
+        <button className="mc-primary-btn" style={{ flex: 2 }} onClick={props.onDone}>
+          Save & back
+        </button>
+      </div>
     </div>
   );
 }
@@ -1934,43 +2213,60 @@ const toggleRowStyle: React.CSSProperties = {
 
 function InfoContent() {
   return (
-    <>
-      <h2 style={{ fontSize: 20, color: "var(--blood)", marginBottom: 4 }}>How to play</h2>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        Mafia City runs the whole "deal the case files" step on one phone, offline. Everyone else stays blind to everyone else's role.
-      </p>
-      <ModalDivider />
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>1. Enter your player count</h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        Type any number from 6 to 20 on the title screen. The exact mix of roles and the Doctor's number of saves are set automatically.
-      </p>
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>2. Everyone types their own name</h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        The phone is passed player to player. Each person types only their own name and taps "Next player". The order becomes the deal order.
-      </p>
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>3. Confirm the order, then deal</h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        Fix typos or reorder on the review screen — optionally pick a specific Godfather. Then case files go out one press-and-hold at a time.
-      </p>
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>4. Final seal — Godfather only</h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        After the last player has their file, one more seal appears. Whoever's Godfather reveals themselves and unlocks the dashboard.
-      </p>
-      <ModalDivider />
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>Roles</h3>
-      <ul style={{ fontSize: 13, lineHeight: 1.6, paddingLeft: 20 }}>
-        {(Object.keys(ROLE_INFO) as Role[]).map((r) => (
-          <li key={r}>
-            <b>{r}</b> — {ROLE_INFO[r]}
-          </li>
-        ))}
-      </ul>
-      <ModalDivider />
-      <h3 style={{ fontSize: 13, color: "var(--blood)" }}>Top bar</h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-        <b>⚙</b> customize roles &amp; cards · <b>☾</b> dim the screen for a dark room · <b>♪</b> mute sound/vibration · <b>i</b> these rules · <b>⟲</b> abandon this game.
-      </p>
-    </>
+    <Tabs defaultValue="howto">
+      <h2 style={{ fontSize: 20, color: "var(--blood)", marginBottom: 10 }}>Rules & Help</h2>
+      <TabsList className="w-full grid grid-cols-3">
+        <TabsTrigger value="howto">How to Play</TabsTrigger>
+        <TabsTrigger value="roles">Roles</TabsTrigger>
+        <TabsTrigger value="controls">Controls</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="howto">
+        <div className="mc-file-card" style={{ textAlign: "left", marginBottom: 14 }}>
+          <div className="mc-file-label" style={{ marginTop: 0 }}>Objective</div>
+          <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+            One phone deals secret roles to everyone at the table. <b>Town-aligned players</b> win by finding and
+            voting out the Mafia. <b>Mafia-aligned players</b> win by quietly surviving until they equal or
+            outnumber the Town. The Godfather runs the game and doesn't win or lose either way.
+          </p>
+        </div>
+        <h3 style={{ fontSize: 13, color: "var(--blood)" }}>1. Enter your player count</h3>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          Type any number from 6 to 20 on the title screen. The exact mix of roles and the Doctor's number of saves are set automatically.
+        </p>
+        <h3 style={{ fontSize: 13, color: "var(--blood)" }}>2. Everyone types their own name</h3>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          The phone is passed player to player. Each person types only their own name and taps "Next player". The order becomes the deal order.
+        </p>
+        <h3 style={{ fontSize: 13, color: "var(--blood)" }}>3. Confirm the order, then deal</h3>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          Fix typos or reorder on the review screen — optionally pick a specific Godfather. Then case files go out one press-and-hold at a time.
+        </p>
+        <h3 style={{ fontSize: 13, color: "var(--blood)" }}>4. Final seal — Godfather only</h3>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          After the last player has their file, one more seal appears. Whoever's Godfather reveals themselves and unlocks the dashboard.
+        </p>
+      </TabsContent>
+
+      <TabsContent value="roles">
+        <ul style={{ fontSize: 13, lineHeight: 1.6, paddingLeft: 20 }}>
+          {(Object.keys(ROLE_INFO) as Role[]).map((r) => (
+            <li key={r} style={{ marginBottom: 8 }}>
+              <b>{r}</b> — {ROLE_INFO[r]}
+            </li>
+          ))}
+        </ul>
+      </TabsContent>
+
+      <TabsContent value="controls">
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <b>☾</b> dim the screen for a dark room · <b>♪</b> mute sound/vibration · <b>☰</b> opens the menu, which holds Rules, Game History, Role/Card settings, and Start New Game.
+        </p>
+        <p style={{ fontSize: 13, lineHeight: 1.6 }}>
+          During the Night phase on the Godfather's dashboard, the script walks through one step at a time — tap "Next step" to advance, or "View full script instead" to see it all at once.
+        </p>
+      </TabsContent>
+    </Tabs>
   );
 }
 

@@ -25,7 +25,7 @@ async function getPlugin(): Promise<NativePurchasesPlugin | null> {
   if (!Capacitor.isNativePlatform()) return null;
   if (_plugin) return _plugin;
   try {
-    const mod = (await import("@capgo/capacitor-native-purchases")) as unknown as {
+    const mod = (await import("@capgo/native-purchases")) as unknown as {
       NativePurchases: NativePurchasesPlugin;
     };
     _plugin = mod.NativePurchases;
