@@ -241,8 +241,8 @@
   }
 
   .mc-icon-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     border: 1.5px solid var(--smoke-dim);
     background: rgba(0, 0, 0, 0.2);
@@ -302,6 +302,14 @@
   .mc-app-bg.mc-dim [style*="background: var(--blood)"] {
     filter: brightness(1.3);
   }
+
+  /* ADD */
+.mc-primary-btn:focus-visible,
+.mc-ghost-btn:focus-visible,
+.mc-icon-btn:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
 
   /* Seal */
   .mc-seal {

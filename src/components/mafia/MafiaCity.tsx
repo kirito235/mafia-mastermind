@@ -70,6 +70,7 @@ import { Modal, ModalDivider } from "./Modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Drama, Trophy, ShoppingBag, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 
 // TODO: replace with the real Play Store listing once the app is published.
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.yourcompany.mafiacity";
@@ -527,10 +528,10 @@ export function MafiaCity() {
   const aliveTown = state.assignments.filter((a) => a.alive !== false && ALIGNMENT[a.role] === "town").length;
   const winHint =
     aliveMafia === 0
-      ? "All Mafia-aligned players are eliminated — looks like the Town has won."
+      ? "All Mafia-aligned players are eliminated. The Town has won."
       : aliveMafia >= aliveTown
-        ? "Mafia now equal or outnumber the Town — looks like the Mafia has won."
-        : `Still alive: ${aliveTown} Town-aligned, ${aliveMafia} Mafia-aligned. No side has won yet.`;
+        ? "Mafia now equal or outnumber the Town. The Mafia has won."
+        : `Still alive: ${aliveTown} Town-aligned, ${aliveMafia} Mafia-aligned. No winner yet.`;
 
   // Timer
   const [timerTotal, setTimerTotal] = useState(120);
@@ -886,16 +887,28 @@ export function MafiaCity() {
               <div className="mc-divider" />
               <div style={{ textAlign: "left" }}>
                 <div className="mc-eyebrow" style={{ marginBottom: 10 }}>Headcount at the table</div>
-                <input
-                  className="mc-big-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={6}
-                  max={20}
-                  placeholder="6–20"
-                  value={playerCountRaw}
-                  onChange={(e) => setPlayerCountRaw(e.target.value)}
-                />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button
+                    type="button"
+                    className="mc-ghost-btn"
+                    style={{ padding: "10px 16px", minWidth: 44 }}
+                    onClick={() => setPlayerCountRaw((c) => String(Math.max(6, (parseInt(c || "9", 10) || 9) - 1)))}
+                  >−</button>
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 32, color: "var(--paper)" }}>
+                      {playerCountRaw || 9}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--smoke-dim)", letterSpacing: "0.14em", marginTop: 4 }}>
+                      PLAYERS · 6–20
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mc-ghost-btn"
+                    style={{ padding: "10px 16px", minWidth: 44 }}
+                    onClick={() => setPlayerCountRaw((c) => String(Math.min(20, (parseInt(c || "9", 10) || 9) + 1)))}
+                  >+</button>
+                </div>
                 <div className="mc-hint">
                   Between six and twenty souls. The Bureau assigns every dossier.
                 </div>
@@ -1041,7 +1054,7 @@ export function MafiaCity() {
                       {editingFromReview ? "Save" : neIdx === state.n - 1 ? "Review the list" : "Next player"}
                     </button>
                   </div>
-                  <div className="mc-hint">Type your own name, then hand the phone onward. Case files go out in this exact order.</div>
+                 <div className="mc-hint">Type your name, then pass the phone. Case files go out in this order.</div>
                 </div>
               )}
 
@@ -1152,8 +1165,8 @@ export function MafiaCity() {
                   <div style={{ color: "var(--smoke)", fontSize: 12.5, maxWidth: 280, lineHeight: 1.6 }}>
                     {isLastReveal ? (
                       <>
-                        This is the last personal case file to go out. Make sure only <b style={{ color: "var(--paper)" }}>{currentAssign.name}</b> can
-                        see the screen before breaking the seal — once it's sealed, whoever's the Godfather takes over.
+                        Last file. Make sure only <b style={{ color: "var(--paper)" }}>{currentAssign.name}</b> can see the screen —
+                        once it's sealed, the Godfather takes over.
                       </>
                     ) : (
                       <>
@@ -1171,7 +1184,20 @@ export function MafiaCity() {
                     <div style={{ fontFamily: "var(--font-display)", fontSize: 10, letterSpacing: "0.2em", color: "var(--smoke-dim)", textTransform: "uppercase" }}>
                       {previewMode ? "Preview — not a real deal" : "Your role"}
                     </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 32, color: "var(--blood)", margin: "4px 0 10px", textTransform: "uppercase" }}>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 32,
+                        margin: "4px 0 10px",
+                        textTransform: "uppercase",
+                        color:
+                          ALIGNMENT[currentAssign.role] === "mafia"
+                            ? "var(--blood)"
+                            : ALIGNMENT[currentAssign.role] === "town"
+                              ? "#7a5c1e" /* darker brass, readable on paper */
+                              : "var(--smoke-dim)",
+                      }}
+                    >
                       {currentAssign.role}
                     </div>
                     <div
@@ -1257,12 +1283,40 @@ export function MafiaCity() {
                     <div className="mc-eyebrow">For the Godfather's eyes only</div>
                     <h2>Master File</h2>
                   </div>
-                  <div className="mc-file-card" style={{ textAlign: "center", flexShrink: 0 }}>
-                    <div className="mc-file-label" style={{ textAlign: "center" }}>Current phase</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 24, color: "var(--brass)", letterSpacing: "0.1em", textAlign: "center", margin: "2px 0 10px" }}>
+                  <div
+                    className="mc-file-card"
+                    style={{
+                      textAlign: "center",
+                      flexShrink: 0,
+                      background: state.phase === "night" ? "#1c1927" : "var(--paper)",
+                      transition: "background 0.4s ease",
+                    }}
+                  >
+                    <div style={{ fontSize: 20, marginBottom: 2 }}>{state.phase === "night" ? "🌙" : "☀️"}</div>
+                    <div className="mc-file-label" style={{ textAlign: "center", color: state.phase === "night" ? "var(--smoke)" : "var(--smoke-dim)" }}>
+                      Current phase
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 24,
+                        letterSpacing: "0.1em",
+                        textAlign: "center",
+                        margin: "2px 0 10px",
+                        color: state.phase === "night" ? "var(--brass)" : "var(--blood)",
+                      }}
+                    >
                       {state.phase === "night" ? "NIGHT" : "DAY"} {state.round}
                     </div>
-                    <button className="mc-ghost-btn" style={{ width: "100%", color: "#2a2620", borderColor: "#8a8474" }} onClick={advancePhase}>
+                    <button
+                      className="mc-ghost-btn"
+                      style={{
+                        width: "100%",
+                        color: state.phase === "night" ? "var(--paper)" : "#2a2620",
+                        borderColor: state.phase === "night" ? "var(--brass)" : "#8a8474",
+                      }}
+                      onClick={advancePhase}
+                    >
                       {state.phase === "night" ? "Move to Day" : "Move to Night"}
                     </button>
                   </div>
@@ -1335,13 +1389,28 @@ export function MafiaCity() {
                         <div className="mc-file-label">
                           {state.phase === "night" ? "Night action — who was eliminated?" : "Day vote — who was voted out?"}
                         </div>
-                        <select className="mc-gf-select" value={eliminatePick} onChange={(e) => setEliminatePick(e.target.value)}>
-                          {aliveNoGf.map((a) => (
-                            <option key={a.name} value={a.name}>
-                              {a.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0" }}>
+                          {aliveNoGf.map((a) => {
+                            const active = eliminatePick === a.name;
+                            return (
+                              <button
+                                type="button"
+                                key={a.name}
+                                onClick={() => setEliminatePick(a.name)}
+                                className="mc-ghost-btn"
+                                style={{
+                                  fontSize: 12,
+                                  padding: "8px 12px",
+                                  color: active ? "var(--paper)" : "#2a2620",
+                                  background: active ? "var(--blood)" : "transparent",
+                                  borderColor: active ? "var(--blood)" : "#8a8474",
+                                }}
+                              >
+                                {a.name}
+                              </button>
+                            );
+                          })}
+                        </div>
                         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                           <button
                             className="mc-ghost-btn"
@@ -1506,7 +1575,14 @@ export function MafiaCity() {
                             <tr key={a.name}>
                               <td>{a.name}</td>
                               <td className={align === "mafia" ? "mc-role-mafia" : "mc-role-normal"}>{a.role}</td>
-                              <td>{result}</td>
+                              <td
+                                style={{
+                                  color: result === "Won" ? "var(--brass)" : result === "Lost" ? "var(--blood)" : "var(--smoke-dim)",
+                                  fontWeight: result === "Won" ? 700 : 400,
+                                }}
+                              >
+                                {result}
+                              </td>
                             </tr>
                           );
                         })}
@@ -1517,7 +1593,16 @@ export function MafiaCity() {
                     <div className="mc-file-label">Scoreboard — saved on this device</div>
                     <Scoreboard />
                     <div
-                      style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic", cursor: "pointer", textDecoration: "underline" }}
+                      style={{
+                        fontSize: 10.5,
+                        color: "var(--blood)",
+                        marginTop: 10,
+                        paddingTop: 8,
+                        borderTop: "1px solid var(--paper-dim)",
+                        fontStyle: "italic",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                      }}
                       onClick={() => setClearScoreModal(true)}
                     >
                       Wipe the scoreboard on this device
@@ -1596,7 +1681,7 @@ export function MafiaCity() {
         <Modal open={showConfirmReset} onClose={() => setShowConfirmReset(false)}>
           <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Open a new case?</h2>
           <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-            Every name and case file currently in play gets shredded — the scoreboard downstairs stays on file. There's no undo once you pull the pin.
+            Every name and case file in play gets shredded — the scoreboard stays on file. There's no undo.
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
             <button className="mc-ghost-btn" style={{ flex: 1, color: "#2a2620", borderColor: "#8a8474" }} onClick={() => setShowConfirmReset(false)}>
@@ -1611,7 +1696,7 @@ export function MafiaCity() {
         <Modal open={showResume} dismissOnBackdrop={false}>
           <h2 style={{ fontSize: 20, color: "var(--blood)" }}>Case still open</h2>
           <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-            A game got interrupted before it was closed out — looks like a refresh or a phone lock cut it off mid-pass. Pick up exactly where it left off, or shred it and start clean.
+            A refresh or locked screen cut off a game mid-pass. Resume it, or shred it and start clean.
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
             <button
@@ -1750,8 +1835,8 @@ export function MafiaCity() {
 
       function arrowBtnStyle(disabled: boolean): React.CSSProperties {
   return {
-        width: 34,
-      height: 34,
+        width: 44,
+      height: 44,
       borderRadius: 4,
       border: "1px solid #8a8474",
       background: "transparent",
@@ -1829,11 +1914,11 @@ export function MafiaCity() {
 }
 
       function BottomNav({active, onNavigate}: {active: Screen; onNavigate: (s: Screen) => void }) {
-  const tabs: {id: Screen; label: string; icon: string }[] = [
-      {id: "title", label: "Play", icon: "🎭" },
-      {id: "leaderboard", label: "Leaders", icon: "🏆" },
-      {id: "shop", label: "Shop", icon: "🛍" },
-      {id: "settings", label: "Settings", icon: "⚙" },
+  const tabs: {id: Screen; label: string; icon: LucideIcon }[] = [
+      {id: "title", label: "Play", icon: Drama },
+      {id: "leaderboard", label: "Leaders", icon: Trophy },
+      {id: "shop", label: "Shop", icon: ShoppingBag },
+      {id: "settings", label: "Settings", icon: SettingsIcon },
       ];
       return (
       <div
@@ -1870,7 +1955,7 @@ export function MafiaCity() {
                   color: isActive ? "var(--brass)" : "var(--smoke)",
                 }}
               >
-                <span style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
+                <t.icon size={18} strokeWidth={2} color={isActive ? "var(--brass)" : "var(--smoke)"} />
                 <span style={{ fontFamily: "var(--font-display)", fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>
                   {t.label}
                 </span>
@@ -1955,7 +2040,7 @@ export function MafiaCity() {
             <div className="mc-file-card" style={{ textAlign: "left", border: "2px solid var(--brass)" }}>
               <div className="mc-file-label" style={{ marginTop: 0 }}>Premium Unlock</div>
               <p className="mc-file-text">
-                One-time purchase. Unlocks every premium theme below, plus auto-narration for the night script. No subscription, ever.
+                One-time purchase - every premium theme, plus auto-narration for the night script. No subscription.
               </p>
               {props.purchaseMsg && <p style={{ fontSize: 12, color: "var(--blood)" }}>{props.purchaseMsg}</p>}
               <button className="mc-primary-btn" style={{ width: "100%", marginTop: 8 }} onClick={props.onPurchase} disabled={props.purchasing}>
@@ -1977,12 +2062,26 @@ export function MafiaCity() {
                     disabled={locked}
                     onClick={() => !locked && props.selectTheme(id)}
                     className="mc-ghost-btn"
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#2a2620", borderColor: active ? "var(--blood)" : "#8a8474", opacity: locked ? 0.55 : 1 }}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      color: locked ? "var(--smoke-dim)" : "#2a2620",
+                      borderColor: active ? "var(--blood)" : "#8a8474",
+                      opacity: locked ? 0.7 : 1,
+                    }}
                   >
-                    <span>{t.label}{active ? " ✓" : ""}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ display: "flex", gap: 2 }}>
+                        <span style={{ width: 11, height: 11, borderRadius: "50%", background: t.tokens.blood, display: "inline-block" }} />
+                        <span style={{ width: 11, height: 11, borderRadius: "50%", background: t.tokens.brass, display: "inline-block" }} />
+                        <span style={{ width: 11, height: 11, borderRadius: "50%", background: t.tokens.paper, border: "1px solid #8a8474", display: "inline-block" }} />
+                      </span>
+                      {t.label}{active ? " ✓" : ""}
+                    </span>
                     {t.premium && (
-                      <span style={{ fontSize: 10, color: "var(--brass)", letterSpacing: "0.08em" }}>
-                        {props.isPremium ? "UNLOCKED" : "🔒 PREMIUM"}
+                      <span style={{ fontSize: 10, color: locked ? "var(--smoke-dim)" : "var(--brass)", letterSpacing: "0.08em" }}>
+                        {props.isPremium ? "UNLOCKED" : "🔒"}
                       </span>
                     )}
                   </button>
@@ -2078,7 +2177,7 @@ export function MafiaCity() {
                     ))}
                   </div>
                   <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
-                    Godfather and Mafia are always in play. Turning a role off folds its slot(s) into Civilian instead.
+                    Godfather and Mafia are always in play. Turning off a role adds its slots back as Civilians.
                   </div>
                 </div>
                 <div className="mc-file-card" style={{ textAlign: "left" }}>
@@ -2102,7 +2201,7 @@ export function MafiaCity() {
                     ))}
                   </div>
                   <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", marginTop: 6, fontStyle: "italic" }}>
-                    Each add-on takes a Civilian slot. Requires at least one Civilian in the current lineup.
+                    Each add-on swaps in for a Civilian, so you'll need at least one in the lineup to turn it on.
                   </div>
                 </div>
 
@@ -2235,27 +2334,43 @@ export function MafiaCity() {
                   <div style={{ fontSize: 10.5, color: "var(--smoke-dim)", textAlign: "right", marginTop: 4 }}>
                     {desc.length}/200
                   </div>
-                  <button
-                    className="mc-ghost-btn"
-                    style={{ marginTop: 10, color: "#2a2620", borderColor: "#8a8474" }}
-                    onClick={() => {
-                      if (props.addCustomCard(name, desc)) {
-                        setName("");
-                        setDesc("");
-                      }
-                    }}
-                  >
-                    Add card
-                  </button>
+                  {(() => {
+                    const isDuplicate = ACTION_CARDS.concat(props.cardSettings.custom).some(
+                      (c) => c[0].toLowerCase() === name.trim().toLowerCase(),
+                    );
+                    return (
+                      <>
+                        <button
+                          className="mc-ghost-btn"
+                          style={{ marginTop: 10, color: "#2a2620", borderColor: "#8a8474" }}
+                          disabled={!name.trim() || !desc.trim() || isDuplicate}
+                          onClick={() => {
+                            if (props.addCustomCard(name, desc)) {
+                              setName("");
+                              setDesc("");
+                            }
+                          }}
+                        >
+                          Add card
+                        </button>
+                        {isDuplicate && name.trim() && (
+                          <div style={{ fontSize: 11, color: "var(--blood-bright)", marginTop: 6 }}>
+                            A card called "{name.trim()}" already exists.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
-                <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
                   <button
                     className="mc-ghost-btn"
-                    style={{ flex: 1, color: "var(--blood)", borderColor: "var(--blood)" }}
-                    onClick={() => setShowResetConfirm(true)}>
+                    style={{ fontSize: 11, color: "var(--smoke-dim)", borderColor: "var(--smoke-dim)", alignSelf: "center", padding: "8px 16px" }}
+                    onClick={() => setShowResetConfirm(true)}
+                  >
                     Reset to defaults
                   </button>
-                  <button className="mc-primary-btn" style={{ flex: 2 }} onClick={props.onDone}>
+                  <button className="mc-primary-btn" onClick={props.onDone}>
                     Save & back
                   </button>
                 </div>

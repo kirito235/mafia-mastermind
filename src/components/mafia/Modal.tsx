@@ -46,10 +46,10 @@ export function Modal({ open, onClose, children, dismissOnBackdrop = true }: Pro
             aria-label="Close"
             style={{
               position: "absolute",
-              top: 14,
-              right: 14,
-              width: 28,
-              height: 28,
+              top: 10,
+              right: 10,
+              width: 44,
+              height: 44,
               borderRadius: "50%",
               border: "1px solid #8a8474",
               background: "var(--paper)",
